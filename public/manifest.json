@@ -1,0 +1,24 @@
+{
+  "name": "Teslak Delivery",
+  "short_name": "Teslak",
+  "description": "Teslak Transport Delivery Tracking System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#c62828",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/teslak-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/teslak-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

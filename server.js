@@ -1,0 +1,160 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const cron = require('node-cron');
+const archiver = require('archiver');
+const { Pool } = require('pg');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Trust proxy for Traefik
+app.set('trust proxy', true);
+
+// CORS
+app.use(cors());
+
+// Body parsers
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Database pool
+const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME || 'teslak',
+  user: process.env.DB_USER || 'teslak',
+  password: process.env.DB_PASS || 'teslak',
+});
+
+// Make pool available to routes
+app.locals.db = pool;
+
+// Ensure photo directory exists
+const PHOTO_DIR = '/data/photos';
+if (!fs.existsSync(PHOTO_DIR)) {
+  fs.mkdirSync(PHOTO_DIR, { recursive: true });
+}
+
+// Initialize database schema
+async function initDB() {
+  try {
+    const schema = fs.readFileSync(path.join(__dirname, 'db', 'schema.sql'), 'utf8');
+    await pool.query(schema);
+    console.log('Database schema initialized');
+  } catch (err) {
+    console.error('Failed to initialize database:', err.message);
+  }
+}
+
+// Mount routes
+const authRoutes = require('./routes/auth');
+const jobsRoutes = require('./routes/jobs');
+const photosRoutes = require('./routes/photos');
+const adminRoutes = require('./routes/admin');
+
+app.use('/api/auth', authRoutes);
+app.use('/api/jobs', jobsRoutes);
+app.use('/api/photos', photosRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+
+// Gallery page for email links
+app.get('/gallery/:jobId', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'gallery.html'));
+});
+
+// ZIP download of all photos for a job
+app.get('/api/jobs/:jobId/download-all', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const pool = req.app.locals.db;
+    const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+    if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+    const photos = await pool.query('SELECT * FROM job_photos WHERE job_id = $1', [jobId]);
+    if (photos.rows.length === 0) return res.status(404).json({ error: 'No photos found' });
+
+    const orderNr = job.rows[0].order_nr || jobId;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="teslak-' + orderNr + '-photos.zip"');
+
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.pipe(res);
+    photos.rows.forEach(p => {
+      const filePath = path.join('/data/photos', p.filename);
+      if (fs.existsSync(filePath)) {
+        archive.file(filePath, { name: p.original_name || p.filename });
+      }
+    });
+    await archive.finalize();
+  } catch (err) {
+    console.error('ZIP download error:', err);
+    res.status(500).json({ error: 'Failed to create ZIP' });
+  }
+});
+
+// Admin page
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// SPA fallback - serve index.html for non-API routes
+app.get('*', (req, res) => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ error: 'Not found' });
+  }
+});
+
+// Daily cleanup cron: 2am, delete jobs + photos older than 30 days
+cron.schedule('0 2 * * *', async () => {
+  console.log('Running daily cleanup...');
+  try {
+    // Get photos for old jobs before deleting
+    const oldPhotos = await pool.query(
+      `SELECT jp.filename FROM job_photos jp
+       JOIN jobs j ON jp.job_id = j.id
+       WHERE j.created_at < NOW() - INTERVAL '30 days'`
+    );
+
+    // Delete photo files
+    for (const row of oldPhotos.rows) {
+      const filePath = path.join(PHOTO_DIR, row.filename);
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log(`Deleted photo: ${row.filename}`);
+        }
+      } catch (e) {
+        console.error(`Failed to delete photo ${row.filename}:`, e.message);
+      }
+    }
+
+    // Delete old jobs (cascades to job_photos)
+    const result = await pool.query(
+      `DELETE FROM jobs WHERE created_at < NOW() - INTERVAL '30 days'`
+    );
+    console.log(`Cleanup complete: removed ${result.rowCount} old jobs`);
+  } catch (err) {
+    console.error('Cleanup failed:', err.message);
+  }
+});
+
+// Start server
+initDB().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Teslak Delivery server running on port ${PORT}`);
+  });
+});

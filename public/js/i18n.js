@@ -1,0 +1,258 @@
+(function() {
+  const translations = {
+    da: {
+      // Login
+      'login.title': 'Leveringssystem',
+      'login.subtitle': 'Log ind for at fortsætte',
+      'login.selectDriver': 'Vælg chauffør',
+      'login.pin': 'PIN-kode',
+      'login.pinPlaceholder': '••••',
+      'login.button': 'Log ind',
+      'login.loggingIn': 'Logger ind...',
+
+      // Nav
+      'nav.dashboard': 'Oversigt',
+      'nav.new': 'Ny',
+      'nav.deliveries': 'Leveringer',
+      'nav.profile': 'Profil',
+
+      // Dashboard
+      'dash.title': 'Oversigt',
+      'dash.totalToday': 'I dag',
+      'dash.completed': 'Leveret',
+      'dash.issues': 'Problemer',
+      'dash.newDelivery': 'Ny Levering',
+      'dash.myDeliveries': 'Mine Leveringer',
+      'dash.damageReport': 'Skaderapport',
+      'dash.recentTitle': 'Seneste Leveringer',
+      'dash.noRecent': 'Ingen leveringer endnu',
+
+      // New Delivery
+      'new.title': 'Ny Levering',
+      'new.step1': 'Tag Billeder',
+      'new.step2': 'Detaljer',
+      'new.step3': 'Bekræft',
+      'new.takePhoto': 'Tag Billede af Mærkat',
+      'new.takePhotoDesc': 'Tag et billede af leveringsmærkaten',
+      'new.addMore': 'Tilføj flere billeder',
+      'new.analyze': 'Analysér',
+      'new.analyzing': 'Analyserer billeder...',
+      'new.analyzingDesc': 'AI læser mærkaten...',
+      'new.tourNr': 'Tur Nr',
+      'new.orderNr': 'Order Nr',
+      'new.customer': 'Kunde',
+      'new.address': 'Adresse',
+      'new.product': 'Produkt',
+      'new.deliveryDate': 'Leveringsdato',
+      'new.count': 'Antal',
+      'new.posNr': 'Pos Nr',
+      'new.production': 'Produktion',
+      'new.barcode': 'Stregkode',
+      'new.additionalPhotos': 'Ekstra Billeder',
+      'new.addUnloadPhoto': 'Tilføj aflæsningsbillede',
+      'new.next': 'Næste',
+      'new.back': 'Tilbage',
+      'new.summary': 'Opsummering',
+      'new.selectStatus': 'Vælg Status',
+      'new.delivered': 'Leveret',
+      'new.damaged': 'Beskadiget',
+      'new.missing': 'Mangler',
+      'new.damageDesc': 'Beskriv skaden',
+      'new.damageDescPlaceholder': 'Skriv en beskrivelse af skaden...',
+      'new.submit': 'Gem & Send',
+      'new.submitting': 'Gemmer...',
+      'new.success': 'Levering gemt!',
+      'new.emailSent': 'Email sendt til kunde',
+
+      // Deliveries
+      'del.title': 'Mine Leveringer',
+      'del.all': 'Alle',
+      'del.delivered': 'Leveret',
+      'del.damaged': 'Beskadiget',
+      'del.missing': 'Mangler',
+      'del.today': 'I dag',
+      'del.thisWeek': 'Denne uge',
+      'del.thisMonth': 'Denne måned',
+      'del.noJobs': 'Ingen leveringer fundet',
+      'del.pullRefresh': 'Træk ned for at opdatere',
+
+      // Job Detail
+      'job.title': 'Leveringsdetaljer',
+      'job.info': 'Information',
+      'job.photos': 'Billeder',
+      'job.noPhotos': 'Ingen billeder',
+      'job.damageReport': 'Skaderapport',
+      'job.resendEmail': 'Send Email Igen',
+      'job.edit': 'Rediger',
+      'job.emailSent': 'Email sendt!',
+
+      // Damage Report
+      'dmg.title': 'Skaderapport',
+      'dmg.selectDelivery': 'Vælg levering',
+      'dmg.searchDelivery': 'Søg efter ordre...',
+      'dmg.orNew': 'Eller opret ny rapport',
+      'dmg.createNew': 'Opret Ny Rapport',
+      'dmg.evidence': 'Dokumentation',
+      'dmg.takePhoto': 'Tag billede af skade',
+      'dmg.description': 'Beskrivelse',
+      'dmg.descPlaceholder': 'Beskriv skaden i detaljer...',
+      'dmg.severity': 'Alvorlighed',
+      'dmg.low': 'Lav',
+      'dmg.medium': 'Medium',
+      'dmg.high': 'Høj',
+      'dmg.submit': 'Indsend Rapport',
+      'dmg.submitting': 'Indsender...',
+      'dmg.success': 'Skaderapport indsendt',
+
+      // Common
+      'common.loading': 'Indlæser...',
+      'common.error': 'Der opstod en fejl',
+      'common.retry': 'Prøv igen',
+      'common.cancel': 'Annuller',
+      'common.save': 'Gem',
+      'common.delete': 'Slet',
+      'common.confirm': 'Bekræft',
+      'common.logout': 'Log ud',
+      'common.offline': 'Ingen forbindelse',
+      'common.pending': 'Afventer',
+      'common.draft': 'Kladde',
+    },
+    en: {
+      // Login
+      'login.title': 'Delivery System',
+      'login.subtitle': 'Sign in to continue',
+      'login.selectDriver': 'Select driver',
+      'login.pin': 'PIN Code',
+      'login.pinPlaceholder': '••••',
+      'login.button': 'Sign In',
+      'login.loggingIn': 'Signing in...',
+
+      // Nav
+      'nav.dashboard': 'Dashboard',
+      'nav.new': 'New',
+      'nav.deliveries': 'Deliveries',
+      'nav.profile': 'Profile',
+
+      // Dashboard
+      'dash.title': 'Dashboard',
+      'dash.totalToday': 'Today',
+      'dash.completed': 'Delivered',
+      'dash.issues': 'Issues',
+      'dash.newDelivery': 'New Delivery',
+      'dash.myDeliveries': 'My Deliveries',
+      'dash.damageReport': 'Damage Report',
+      'dash.recentTitle': 'Recent Deliveries',
+      'dash.noRecent': 'No deliveries yet',
+
+      // New Delivery
+      'new.title': 'New Delivery',
+      'new.step1': 'Take Photos',
+      'new.step2': 'Details',
+      'new.step3': 'Confirm',
+      'new.takePhoto': 'Take Sticker Photo',
+      'new.takePhotoDesc': 'Photograph the delivery sticker',
+      'new.addMore': 'Add more photos',
+      'new.analyze': 'Analyze',
+      'new.analyzing': 'Analyzing photos...',
+      'new.analyzingDesc': 'AI is reading the sticker...',
+      'new.tourNr': 'Tour Nr',
+      'new.orderNr': 'Order Nr',
+      'new.customer': 'Customer',
+      'new.address': 'Address',
+      'new.product': 'Product',
+      'new.deliveryDate': 'Delivery Date',
+      'new.count': 'Count',
+      'new.posNr': 'Pos Nr',
+      'new.production': 'Production',
+      'new.barcode': 'Barcode',
+      'new.additionalPhotos': 'Additional Photos',
+      'new.addUnloadPhoto': 'Add unloading photo',
+      'new.next': 'Next',
+      'new.back': 'Back',
+      'new.summary': 'Summary',
+      'new.selectStatus': 'Select Status',
+      'new.delivered': 'Delivered',
+      'new.damaged': 'Damaged',
+      'new.missing': 'Missing',
+      'new.damageDesc': 'Describe the damage',
+      'new.damageDescPlaceholder': 'Write a description of the damage...',
+      'new.submit': 'Save & Send',
+      'new.submitting': 'Saving...',
+      'new.success': 'Delivery saved!',
+      'new.emailSent': 'Email sent to customer',
+
+      // Deliveries
+      'del.title': 'My Deliveries',
+      'del.all': 'All',
+      'del.delivered': 'Delivered',
+      'del.damaged': 'Damaged',
+      'del.missing': 'Missing',
+      'del.today': 'Today',
+      'del.thisWeek': 'This week',
+      'del.thisMonth': 'This month',
+      'del.noJobs': 'No deliveries found',
+      'del.pullRefresh': 'Pull down to refresh',
+
+      // Job Detail
+      'job.title': 'Delivery Details',
+      'job.info': 'Information',
+      'job.photos': 'Photos',
+      'job.noPhotos': 'No photos',
+      'job.damageReport': 'Damage Report',
+      'job.resendEmail': 'Resend Email',
+      'job.edit': 'Edit',
+      'job.emailSent': 'Email sent!',
+
+      // Damage Report
+      'dmg.title': 'Damage Report',
+      'dmg.selectDelivery': 'Select delivery',
+      'dmg.searchDelivery': 'Search for order...',
+      'dmg.orNew': 'Or create a new report',
+      'dmg.createNew': 'Create New Report',
+      'dmg.evidence': 'Evidence',
+      'dmg.takePhoto': 'Take damage photo',
+      'dmg.description': 'Description',
+      'dmg.descPlaceholder': 'Describe the damage in detail...',
+      'dmg.severity': 'Severity',
+      'dmg.low': 'Low',
+      'dmg.medium': 'Medium',
+      'dmg.high': 'High',
+      'dmg.submit': 'Submit Report',
+      'dmg.submitting': 'Submitting...',
+      'dmg.success': 'Damage report submitted',
+
+      // Common
+      'common.loading': 'Loading...',
+      'common.error': 'An error occurred',
+      'common.retry': 'Retry',
+      'common.cancel': 'Cancel',
+      'common.save': 'Save',
+      'common.delete': 'Delete',
+      'common.confirm': 'Confirm',
+      'common.logout': 'Log out',
+      'common.offline': 'No connection',
+      'common.pending': 'Pending',
+      'common.draft': 'Draft',
+    }
+  };
+
+  let currentLang = localStorage.getItem('teslak_lang') || 'da';
+
+  function t(key) {
+    const dict = translations[currentLang] || translations.da;
+    return dict[key] || translations.da[key] || key;
+  }
+
+  function setLang(lang) {
+    if (translations[lang]) {
+      currentLang = lang;
+      localStorage.setItem('teslak_lang', lang);
+    }
+  }
+
+  function getLang() {
+    return currentLang;
+  }
+
+  window.i18n = { t, setLang, getLang };
+})();
