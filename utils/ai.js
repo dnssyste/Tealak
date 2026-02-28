@@ -6,12 +6,19 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const SYSTEM_PROMPT = `You are analyzing delivery sticker photos for a transport company. Extract ALL text from the sticker labels. Return a JSON object with these fields: tur_nr, order_nr, customer_name, address, product, delivery_date (YYYY-MM-DD format), antal (count as number), pos_nr, production, barcode. If multiple stickers, return an array. If a field cannot be read, set it to null.`;
+const SYSTEM_PROMPT = `Analyze this delivery sticker photo. Extract ONLY these fields:
+- order_nr: The order number (look for "Order nr" or similar)
+- tur_nr: The tour number (look for "Tur nr" or similar)
+- address: The full delivery address including any customer/recipient name
+- timestamp: Current date and time
+
+Return as JSON: {"order_nr": "...", "tur_nr": "...", "address": "...", "timestamp": "..."}
+If a field cannot be read, use null.`;
 
 async function analyzePhotos(imagePaths) {
   // Build content array with images
   const content = [
-    { type: 'text', text: 'Please analyze these delivery sticker photos and extract all information.' }
+    { type: 'text', text: 'Please analyze these delivery sticker photos and extract the requested information.' }
   ];
 
   for (const imgPath of imagePaths) {

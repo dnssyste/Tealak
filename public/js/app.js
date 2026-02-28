@@ -180,7 +180,7 @@
         '</div>' +
         '<div class="form-group">' +
           '<label class="form-label">' + t('login.pin') + '</label>' +
-          '<input type="tel" id="login-pin" class="form-input pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="' + t('login.pinPlaceholder') + '">' +
+          '<input type="tel" id="login-pin" class="form-input pin-input" maxlength="4" pattern="[0-9]*" placeholder="' + t('login.pinPlaceholder') + '">' +
         '</div>' +
         '<button id="login-btn" class="btn btn-primary btn-lg">' + t('login.button') + '</button>' +
       '</div>' +
@@ -361,7 +361,7 @@
         '<div class="camera-text">' + t('new.takePhoto') + '</div>' +
         '<div class="text-sm text-muted mt-12">' + t('new.takePhotoDesc') + '</div>' +
       '</div>' +
-      '<input type="file" accept="image/*" capture="environment" class="camera-input" id="camera-input" multiple>' +
+      '<input type="file" accept="image/*" class="camera-input" id="camera-input" multiple>' +
       photosHtml +
       (s.photos.length > 0 ?
         '<button class="btn btn-secondary mb-12" id="add-more-btn">📷 ' + t('new.addMore') + '</button>' +

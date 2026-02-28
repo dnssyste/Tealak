@@ -138,6 +138,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .empty-state .empty-icon{font-size:48px;margin-bottom:12px;opacity:.5}
 .empty-state p{font-size:14px;max-width:300px;margin:0 auto}
 
+/* ===== PHOTO LIBRARY ===== */
+.photo-search{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.photo-search input{flex:1;min-width:160px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:#fff;font-size:14px}
+.photo-search input:focus{outline:none;border-color:var(--accent)}
+.photo-job-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;cursor:pointer;transition:border-color .15s}
+.photo-job-card:hover{border-color:var(--accent)}
+.photo-job-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.photo-job-title{font-weight:600;color:#fff;font-size:15px}
+.photo-job-meta{font-size:12px;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap}
+.photo-job-meta span{display:flex;align-items:center;gap:4px}
+.photo-grid-lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.photo-grid-lib img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border);transition:transform .15s}
+.photo-grid-lib img:hover{transform:scale(1.03)}
+.photo-job-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+/* Lightbox */
+.lightbox-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.9);display:none;z-index:70;align-items:center;justify-content:center;padding:16px;flex-direction:column}
+.lightbox-overlay.show{display:flex}
+.lightbox-overlay img{max-width:90vw;max-height:80vh;border-radius:8px;object-fit:contain}
+.lightbox-close{position:absolute;top:16px;right:20px;background:none;border:none;color:#fff;font-size:32px;cursor:pointer;z-index:71}
+.lightbox-download{margin-top:12px}
+
+/* Email modal for photos */
+.photo-email-form{display:flex;flex-direction:column;gap:12px}
+.photo-email-form textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:#fff;font-size:14px;min-height:80px;resize:vertical}
+.photo-email-form textarea:focus{outline:none;border-color:var(--accent)}
+
 /* ===== RESPONSIVE: TABLET ===== */
 @media(max-width:900px){
   .sidebar{width:200px}
@@ -185,7 +212,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <div style="font-size:40px;margin-bottom:12px">🔒</div>
       <h2>Admin Access</h2>
       <p class="subtitle">Enter your admin PIN to continue</p>
-      <input type="password" id="pinInput" maxlength="8" placeholder="••••••" onkeyup="if(event.key==='Enter')doLogin()" inputmode="numeric">
+      <input type="password" id="pinInput" maxlength="20" placeholder="••••••" onkeyup="if(event.key==='Enter')doLogin()">
       <button class="btn btn-primary" onclick="doLogin()">Login</button>
       <p id="loginError"></p>
     </div>
@@ -200,11 +227,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <nav class="sidebar">
       <div class="sidebar-section">
         <div class="sidebar-label">Management</div>
-        <div class="nav-item active" data-tab="recipients">
+        <div class="nav-item active" data-tab="drivers">
+          <span class="nav-icon">🚛</span> Drivers <span class="nav-badge" id="badgeDrivers">0</span>
+        </div>
+        <div class="nav-item" data-tab="recipients">
           <span class="nav-icon">📧</span> Recipients <span class="nav-badge" id="badgeRecipients">0</span>
         </div>
-        <div class="nav-item" data-tab="drivers">
-          <span class="nav-icon">👤</span> Drivers <span class="nav-badge" id="badgeDrivers">0</span>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Media</div>
+        <div class="nav-item" data-tab="photos">
+          <span class="nav-icon">📸</span> Photo Library
         </div>
       </div>
       <div class="sidebar-section">
@@ -218,8 +251,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <!-- MAIN CONTENT AREA -->
     <div class="main-content">
 
+      <!-- DRIVERS -->
+      <div class="section active" id="sec-drivers">
+        <div class="page-header">
+          <h2>🚛 Drivers</h2>
+          <button class="btn btn-primary btn-sm" onclick="showAddDriver()">+ Add Driver</button>
+        </div>
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-value" id="statTotalDrivers">0</div>
+            <div class="stat-label">Total Drivers</div>
+          </div>
+        </div>
+        <div class="card">
+          <div id="driverList"></div>
+        </div>
+      </div>
+
       <!-- RECIPIENTS -->
-      <div class="section active" id="sec-recipients">
+      <div class="section" id="sec-recipients">
         <div class="page-header">
           <h2>📧 Email Recipients</h2>
           <button class="btn btn-primary btn-sm" onclick="showAddRecipient()">+ Add Recipient</button>
@@ -239,37 +289,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         </div>
       </div>
 
-      <!-- DRIVERS -->
-      <div class="section" id="sec-drivers">
+      <!-- PHOTO LIBRARY -->
+      <div class="section" id="sec-photos">
         <div class="page-header">
-          <h2>👤 Drivers</h2>
-          <button class="btn btn-primary btn-sm" onclick="showAddDriver()">+ Add Driver</button>
+          <h2>📸 Photo Library</h2>
         </div>
-        <div class="stats-row">
-          <div class="stat-card">
-            <div class="stat-value" id="statTotalDrivers">0</div>
-            <div class="stat-label">Total Drivers</div>
-          </div>
+        <div class="photo-search">
+          <input type="text" id="photoSearch" placeholder="🔍 Search by order nr...">
+          <input type="date" id="photoDateFrom" title="From date">
+          <input type="date" id="photoDateTo" title="To date">
         </div>
-        <div class="card">
-          <div id="driverList"></div>
-        </div>
+        <div id="photoLibrary"><div class="empty-state"><div class="empty-icon">⏳</div><p>Loading photos...</p></div></div>
       </div>
 
       <!-- SETTINGS -->
       <div class="section" id="sec-settings">
         <div class="page-header">
           <h2>⚙️ Settings</h2>
-        </div>
-        <div class="card">
-          <div class="card-header"><h3>Security</h3></div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>New Admin PIN</label>
-              <input type="password" id="settNewAdminPin" placeholder="Enter new PIN" inputmode="numeric">
-              <div class="form-hint">Leave blank to keep current PIN</div>
-            </div>
-          </div>
         </div>
         <div class="card">
           <div class="card-header"><h3>Email</h3></div>
@@ -290,13 +326,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <!-- MOBILE BOTTOM NAV -->
   <nav class="bottom-nav">
     <div class="bottom-nav-inner">
-      <button class="bnav-item active" data-tab="recipients">
+      <button class="bnav-item active" data-tab="drivers">
+        <span class="bnav-icon">🚛</span>
+        Drivers
+      </button>
+      <button class="bnav-item" data-tab="recipients">
         <span class="bnav-icon">📧</span>
         Recipients
       </button>
-      <button class="bnav-item" data-tab="drivers">
-        <span class="bnav-icon">👤</span>
-        Drivers
+      <button class="bnav-item" data-tab="photos">
+        <span class="bnav-icon">📸</span>
+        Photos
       </button>
       <button class="bnav-item" data-tab="settings">
         <span class="bnav-icon">⚙️</span>
@@ -360,7 +400,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div class="form-row">
       <div class="form-group">
         <label>PIN Code</label>
-        <input type="text" id="drvPin" maxlength="4" placeholder="4 digits" inputmode="numeric" pattern="\d{4}">
+        <input type="text" id="drvPin" maxlength="4" placeholder="4 digits" pattern="\d{4}">
         <div class="form-hint">Driver uses this PIN to log in</div>
       </div>
       <div class="form-group">
@@ -398,6 +438,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </div>
 </div>
 
+<!-- LIGHTBOX -->
+<div class="lightbox-overlay" id="lightbox" onclick="if(event.target===this)closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt="Photo">
+  <div class="lightbox-download">
+    <a id="lightboxDownload" href="" download class="btn btn-primary btn-sm">⬇ Download Photo</a>
+  </div>
+</div>
+
+<!-- PHOTO EMAIL MODAL -->
+<div class="modal-overlay" id="photoEmailModal">
+  <div class="modal">
+    <h3>📧 Email Job Photos</h3>
+    <input type="hidden" id="emailJobId">
+    <div class="photo-email-form">
+      <div class="form-group">
+        <label>Recipient Email</label>
+        <input type="email" id="photoEmailTo" placeholder="recipient@example.com">
+      </div>
+      <div class="form-group">
+        <label>Message (optional)</label>
+        <textarea id="photoEmailMsg" placeholder="Add a custom message..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('photoEmailModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="sendPhotoEmail()" id="sendPhotoEmailBtn">📤 Send Email</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -406,16 +477,25 @@ let adminPin = '';
 // ===== AUTH =====
 function doLogin() {
   adminPin = document.getElementById('pinInput').value;
-  fetch('/api/admin/settings', { headers: { 'X-Admin-Pin': adminPin } })
-    .then(r => { if (!r.ok) throw new Error('Invalid PIN'); return r.json(); })
-    .then(() => {
+  fetch('/api/admin/auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin: adminPin })
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) throw new Error('Invalid PIN');
+      if (data.admin && data.admin.name) {
+        document.getElementById('adminUser').textContent = data.admin.name;
+      }
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
       document.getElementById('logoutBtn').style.display = '';
       document.getElementById('adminUser').style.display = '';
-      loadRecipients();
       loadDrivers();
+      loadRecipients();
       loadSettings();
+      loadPhotoLibrary();
     })
     .catch(() => {
       const err = document.getElementById('loginError');
@@ -674,20 +754,136 @@ function loadSettings() {
 
 function saveSettings() {
   const body = {};
-  const newPin = document.getElementById('settNewAdminPin').value;
-  if (newPin) {
-    if (newPin.length < 4) return toast('PIN must be at least 4 characters', true);
-    body.admin_pin = newPin;
-  }
   body.email_auto_send = document.getElementById('settAutoEmail').checked ? 'true' : 'false';
   api('/settings', { method: 'PUT', body: JSON.stringify(body) })
     .then(() => {
-      if (newPin) adminPin = newPin;
-      document.getElementById('settNewAdminPin').value = '';
       toast('Settings saved!');
     })
     .catch(e => toast(e.message, true));
 }
+
+// ===== PHOTO LIBRARY =====
+let photoJobs = [];
+let expandedJob = null;
+
+function loadPhotoLibrary() {
+  api('/photos/library').then(data => {
+    photoJobs = (data || []).filter(j => j.photos && j.photos.length > 0);
+    renderPhotoLibrary();
+  }).catch(e => toast(e.message, true));
+}
+
+function renderPhotoLibrary() {
+  const el = document.getElementById('photoLibrary');
+  const search = (document.getElementById('photoSearch').value || '').toLowerCase();
+  const dateFrom = document.getElementById('photoDateFrom').value;
+  const dateTo = document.getElementById('photoDateTo').value;
+
+  let filtered = photoJobs;
+  if (search) {
+    filtered = filtered.filter(j =>
+      (j.order_nr && j.order_nr.toLowerCase().includes(search)) ||
+      (j.tur_nr && j.tur_nr.toLowerCase().includes(search)) ||
+      (j.address && j.address.toLowerCase().includes(search))
+    );
+  }
+  if (dateFrom) {
+    filtered = filtered.filter(j => j.created_at && j.created_at.substring(0,10) >= dateFrom);
+  }
+  if (dateTo) {
+    filtered = filtered.filter(j => j.created_at && j.created_at.substring(0,10) <= dateTo);
+  }
+
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📷</div><p>No photos found.</p></div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(j => {
+    const photoCount = j.photos ? j.photos.length : 0;
+    const date = j.created_at ? new Date(j.created_at).toLocaleDateString('da-DK') : '';
+    const statusColors = { delivered:'var(--green)', damaged:'#f97316', missing:'#ef4444', pending:'#6b7280' };
+    const statusColor = statusColors[j.status] || statusColors.pending;
+    const isExpanded = expandedJob === j.id;
+
+    let photosGrid = '';
+    if (isExpanded && j.photos) {
+      photosGrid = `<div class="photo-grid-lib">${j.photos.map(p =>
+        `<img src="/api/photos/file/${esc(p.filename)}" alt="${esc(p.original_name || '')}" onclick="openLightbox('/api/photos/file/${esc(p.filename)}', '${esc(p.original_name || p.filename)}')" loading="lazy">`
+      ).join('')}</div>
+      <div class="photo-job-actions">
+        <a href="/api/jobs/${j.id}/download-all" class="btn btn-outline btn-sm">⬇ Download All ZIP</a>
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();showPhotoEmail('${j.id}')">📧 Email Photos</button>
+      </div>`;
+    }
+
+    return `<div class="photo-job-card" onclick="toggleJobPhotos('${j.id}')">
+      <div class="photo-job-header">
+        <span class="photo-job-title">Order ${esc(j.order_nr || '—')}${j.tur_nr ? ' · Tur ' + esc(j.tur_nr) : ''}</span>
+        <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;background:${statusColor};color:#fff">${esc(j.status || 'pending')}</span>
+      </div>
+      <div class="photo-job-meta">
+        <span>📍 ${esc(j.address || 'No address')}</span>
+        <span>📅 ${date}</span>
+        <span>📷 ${photoCount} photo${photoCount !== 1 ? 's' : ''}</span>
+        ${j.driver_name ? '<span>🚛 ' + esc(j.driver_name) + '</span>' : ''}
+      </div>
+      ${photosGrid}
+    </div>`;
+  }).join('');
+}
+
+function toggleJobPhotos(jobId) {
+  expandedJob = expandedJob === jobId ? null : jobId;
+  renderPhotoLibrary();
+}
+
+function openLightbox(src, name) {
+  event.stopPropagation();
+  document.getElementById('lightboxImg').src = src;
+  const dl = document.getElementById('lightboxDownload');
+  dl.href = src;
+  dl.download = name || 'photo';
+  document.getElementById('lightbox').classList.add('show');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('show');
+}
+
+function showPhotoEmail(jobId) {
+  document.getElementById('emailJobId').value = jobId;
+  document.getElementById('photoEmailTo').value = '';
+  document.getElementById('photoEmailMsg').value = '';
+  document.getElementById('photoEmailModal').classList.add('show');
+}
+
+function sendPhotoEmail() {
+  const jobId = document.getElementById('emailJobId').value;
+  const email = document.getElementById('photoEmailTo').value;
+  const message = document.getElementById('photoEmailMsg').value;
+  if (!email) return toast('Email address is required', true);
+
+  const btn = document.getElementById('sendPhotoEmailBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  api('/photos/email', {
+    method: 'POST',
+    body: JSON.stringify({ job_id: jobId, email, message })
+  })
+    .then(() => { closeModal('photoEmailModal'); toast('Photos emailed successfully!'); })
+    .catch(e => toast(e.message, true))
+    .finally(() => { btn.disabled = false; btn.textContent = '📤 Send Email'; });
+}
+
+// Photo search/filter bindings
+document.getElementById('photoSearch').addEventListener('input', () => renderPhotoLibrary());
+document.getElementById('photoDateFrom').addEventListener('change', () => renderPhotoLibrary());
+document.getElementById('photoDateTo').addEventListener('change', () => renderPhotoLibrary());
+
+// Keyboard shortcut for lightbox
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
 // Close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(m => {

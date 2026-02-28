@@ -194,7 +194,7 @@ router.patch('/:id/status', async (req, res) => {
           const photos = await db.query('SELECT * FROM job_photos WHERE job_id = $1', [job.id]);
           const sentTo = [];
           for (const r of recipients.rows) {
-            await sendJobEmail(job, photos.rows, r.email, r.reply_to);
+            await sendJobEmail(job, photos.rows, r.email, r.reply_to, db);
             sentTo.push(r.email);
           }
           const emailList = sentTo.join(', ');
@@ -204,7 +204,7 @@ router.patch('/:id/status', async (req, res) => {
         } else if (job.email_sent_to) {
           // Fallback to job-level recipient
           const photos = await db.query('SELECT * FROM job_photos WHERE job_id = $1', [job.id]);
-          await sendJobEmail(job, photos.rows, job.email_sent_to);
+          await sendJobEmail(job, photos.rows, job.email_sent_to, null, db);
           await db.query('UPDATE jobs SET email_sent = true WHERE id = $1', [job.id]);
           job.email_sent = true;
         }
@@ -321,7 +321,7 @@ router.post('/:id/email', async (req, res) => {
     );
 
     const job = jobResult.rows[0];
-    await sendJobEmail(job, photosResult.rows, email);
+    await sendJobEmail(job, photosResult.rows, email, null, db);
 
     // Update job
     await db.query(

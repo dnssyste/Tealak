@@ -57,11 +57,13 @@ const authRoutes = require('./routes/auth');
 const jobsRoutes = require('./routes/jobs');
 const photosRoutes = require('./routes/photos');
 const adminRoutes = require('./routes/admin');
+const serverAdminRoutes = require('./routes/server-admin');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobsRoutes);
 app.use('/api/photos', photosRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/server-admin', serverAdminRoutes.router || serverAdminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -106,6 +108,11 @@ app.get('/api/jobs/:jobId/download-all', async (req, res) => {
 // Admin page
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Server admin page
+app.get('/server-admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'server-admin.html'));
 });
 
 // SPA fallback - serve index.html for non-API routes

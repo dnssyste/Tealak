@@ -1,14 +1,38 @@
 const nodemailer = require('nodemailer');
 
-function createTransporter() {
-  return nodemailer.createTransport({
+async function getSmtpConfig(pool) {
+  try {
+    const result = await pool.query('SELECT key, value FROM smtp_config');
+    const config = {};
+    result.rows.forEach(r => { config[r.key] = r.value; });
+    if (config.smtp_host) {
+      return {
+        host: config.smtp_host,
+        port: parseInt(config.smtp_port || '587'),
+        secure: config.smtp_port === '465',
+        auth: { user: config.smtp_user, pass: config.smtp_pass },
+        from: config.smtp_from || process.env.SMTP_FROM
+      };
+    }
+  } catch (e) {
+    console.error('Failed to load SMTP from DB:', e.message);
+  }
+  // Fallback to env vars
+  return {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587'),
     secure: process.env.SMTP_PORT === '465',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    from: process.env.SMTP_FROM
+  };
+}
+
+function createTransporter(smtpConfig) {
+  return nodemailer.createTransport({
+    host: smtpConfig.host,
+    port: smtpConfig.port,
+    secure: smtpConfig.secure,
+    auth: smtpConfig.auth,
   });
 }
 
@@ -23,7 +47,15 @@ function getStatusBadge(status) {
   return `<span style="display:inline-block;padding:6px 16px;border-radius:20px;background:${s.bg};color:${s.text};font-weight:bold;font-size:14px;">${s.label}</span>`;
 }
 
-async function sendJobEmail(job, photos, recipientEmail, replyTo) {
+async function sendJobEmail(job, photos, recipientEmail, replyTo, pool) {
+  const smtpConfig = pool ? await getSmtpConfig(pool) : {
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_PORT === '465',
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    from: process.env.SMTP_FROM
+  };
+
   const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
 
   const galleryUrl = `${baseUrl}/gallery/${job.id}`;
@@ -139,16 +171,16 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo) {
     <!-- Footer -->
     <div style="background:#f9fafb;padding:16px 32px;text-align:center;border-top:1px solid #e5e7eb;">
       <p style="margin:0;color:#9ca3af;font-size:12px;">
-        Teslak Delivery System • ${new Date().toLocaleDateString('da-DK')}
+        Teslak Delivery System &bull; ${new Date().toLocaleDateString('da-DK')}
       </p>
     </div>
   </div>
 </body>
 </html>`;
 
-  const transporter = createTransporter();
+  const transporter = createTransporter(smtpConfig);
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || '"Teslak Delivery" <noreply@teslak.dk>',
+    from: smtpConfig.from || '"Teslak Delivery" <noreply@teslak.dk>',
     to: recipientEmail,
     replyTo: replyTo || undefined,
     subject: `Delivery Report: ${job.customer_name || job.order_nr || job.id} - ${(job.status || 'pending').toUpperCase()}`,
@@ -158,4 +190,4 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo) {
   console.log(`Email sent to ${recipientEmail} for job ${job.id}`);
 }
 
-module.exports = { sendJobEmail };
+module.exports = { sendJobEmail, getSmtpConfig };
