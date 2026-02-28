@@ -124,11 +124,11 @@
       formData.append('photos', files[i]);
     }
     if (type) formData.append('type', type);
-    return request('POST', '/api/jobs/' + jobId + '/photos', formData, true);
+    return request('POST', '/api/photos/' + jobId, formData, true);
   }
 
   async function getPhotos(jobId) {
-    return request('GET', '/api/jobs/' + jobId + '/photos');
+    return request('GET', '/api/photos/' + jobId);
   }
 
   async function deletePhoto(id) {

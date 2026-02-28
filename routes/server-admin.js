@@ -263,15 +263,15 @@ router.get('/drivers', requireServerAdmin, async (req, res) => {
 // POST /api/server-admin/drivers — Create
 router.post('/drivers', requireServerAdmin, async (req, res) => {
   try {
-    const { name, pin, lang, email } = req.body;
+    const { name, pin, lang, email, phone } = req.body;
     if (!name || !pin) return res.status(400).json({ error: 'Name and PIN are required' });
     if (pin.length !== 4 || !/^\d{4}$/.test(pin)) return res.status(400).json({ error: 'PIN must be 4 digits' });
     const db = req.app.locals.db;
     const existing = await db.query('SELECT id FROM drivers WHERE pin = $1', [pin]);
     if (existing.rows.length > 0) return res.status(400).json({ error: 'PIN already in use' });
     const result = await db.query(
-      'INSERT INTO drivers (name, pin, lang, email) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, pin, lang || 'da', email || null]
+      'INSERT INTO drivers (name, pin, lang, email, phone) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, pin, lang || 'da', email || null, phone || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -283,7 +283,7 @@ router.post('/drivers', requireServerAdmin, async (req, res) => {
 // PUT /api/server-admin/drivers/:id — Update
 router.put('/drivers/:id', requireServerAdmin, async (req, res) => {
   try {
-    const { name, pin, lang, email } = req.body;
+    const { name, pin, lang, email, phone } = req.body;
     const db = req.app.locals.db;
     if (pin) {
       if (pin.length !== 4 || !/^\d{4}$/.test(pin)) return res.status(400).json({ error: 'PIN must be 4 digits' });
@@ -291,8 +291,8 @@ router.put('/drivers/:id', requireServerAdmin, async (req, res) => {
       if (existing.rows.length > 0) return res.status(400).json({ error: 'PIN already in use' });
     }
     const result = await db.query(
-      'UPDATE drivers SET name=COALESCE($1,name), pin=COALESCE($2,pin), lang=COALESCE($3,lang), email=$4 WHERE id=$5 RETURNING *',
-      [name, pin, lang, email || null, req.params.id]
+      'UPDATE drivers SET name=COALESCE($1,name), pin=COALESCE($2,pin), lang=COALESCE($3,lang), email=$4, phone=$5 WHERE id=$6 RETURNING *',
+      [name, pin, lang, email || null, phone || null, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(result.rows[0]);

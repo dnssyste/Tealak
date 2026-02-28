@@ -116,7 +116,9 @@ router.patch('/:id', async (req, res) => {
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
         updates.push(`${field} = $${paramIdx++}`);
-        values.push(req.body[field]);
+        let val = req.body[field];
+        if ((field === "delivery_date") && (val === "" || val === undefined)) val = null;
+        values.push(val);
       }
     }
 
@@ -274,7 +276,7 @@ router.post('/:id/analyze', async (req, res) => {
         parsed.customer_name,
         parsed.address,
         parsed.product,
-        parsed.delivery_date,
+        parsed.delivery_date || null,
         parsed.antal,
         parsed.pos_nr,
         parsed.production,

@@ -191,7 +191,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
           <span class="nav-icon">👥</span> Office Admins
         </div>
         <div class="nav-item" data-tab="drivers">
-          <span class="nav-icon">🚛</span> Drivers
+          <span class="nav-icon">🚛</span> Truck Numbers
         </div>
       </div>
     </nav>
@@ -251,8 +251,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <!-- DRIVERS -->
       <div class="section" id="sec-drivers">
         <div class="page-header">
-          <h2>🚛 Drivers</h2>
-          <button class="btn btn-primary btn-sm" onclick="showAddDriver()">+ Add Driver</button>
+          <h2>🚛 Truck Numbers</h2>
+          <button class="btn btn-primary btn-sm" onclick="showAddDriver()">+ Add Truck</button>
         </div>
         <div class="card">
           <div id="driverList"></div>
@@ -275,7 +275,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       </button>
       <button class="bnav-item" data-tab="drivers">
         <span class="bnav-icon">🚛</span>
-        Drivers
+        Trucks
       </button>
     </div>
   </nav>
@@ -321,17 +321,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <!-- DRIVER MODAL -->
 <div class="modal-overlay" id="driverModal">
   <div class="modal">
-    <h3 id="driverModalTitle">Add Driver</h3>
+    <h3 id="driverModalTitle">Add Truck</h3>
     <input type="hidden" id="drvEditId">
     <div class="form-group">
-      <label>Driver Name</label>
+      <label>Truck Number</label>
       <input type="text" id="drvName" placeholder="Full name">
     </div>
     <div class="form-row">
       <div class="form-group">
         <label>PIN Code</label>
         <input type="text" id="drvPin" maxlength="4" placeholder="4 digits">
-        <div class="form-hint">Driver uses this PIN to log in</div>
+        <div class="form-hint">Used to log in with this PIN</div>
       </div>
       <div class="form-group">
         <label>Language</label>
@@ -341,9 +341,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         </select>
       </div>
     </div>
-    <div class="form-group">
-      <label>Email (optional)</label>
-      <input type="email" id="drvEmail" placeholder="driver@example.com">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Email (optional)</label>
+        <input type="email" id="drvEmail" placeholder="contact@example.com">
+      </div>
+      <div class="form-group">
+        <label>Phone (optional)</label>
+        <input type="tel" id="drvPhone" placeholder="+45 12345678">
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('driverModal')">Cancel</button>
@@ -587,7 +593,7 @@ function loadDrivers() {
 function renderDrivers() {
   const el = document.getElementById('driverList');
   if (drivers.length === 0) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🚛</div><p>No drivers registered. Add a driver so they can log in and upload deliveries.</p></div>';
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🚛</div><p>No trucks registered. Add a truck so they can log in and upload deliveries.</p></div>';
     return;
   }
   el.innerHTML = '<div class="item-list">' + drivers.map(d => `
@@ -597,7 +603,7 @@ function renderDrivers() {
         <div class="item-name">${esc(d.name)}</div>
         <div class="item-detail">
           PIN: <strong>${d.pin}</strong> · ${d.lang === 'da' ? '🇩🇰 Dansk' : '🇬🇧 English'}
-          ${d.email ? '<br>📧 ' + esc(d.email) : ''}
+          ${d.email ? '<br>📧 ' + esc(d.email) : ''}${d.phone ? '<br>📞 ' + esc(d.phone) : ''}
         </div>
       </div>
       <div class="item-actions">
@@ -609,24 +615,26 @@ function renderDrivers() {
 }
 
 function showAddDriver() {
-  document.getElementById('driverModalTitle').textContent = 'Add Driver';
+  document.getElementById('driverModalTitle').textContent = 'Add Truck';
   document.getElementById('drvEditId').value = '';
   document.getElementById('drvName').value = '';
   document.getElementById('drvPin').value = '';
   document.getElementById('drvLang').value = 'da';
   document.getElementById('drvEmail').value = '';
+  document.getElementById('drvPhone').value = '';
   document.getElementById('driverModal').classList.add('show');
 }
 
 function editDriver(id) {
   const d = drivers.find(x => x.id === id);
   if (!d) return;
-  document.getElementById('driverModalTitle').textContent = 'Edit Driver';
+  document.getElementById('driverModalTitle').textContent = 'Edit Truck';
   document.getElementById('drvEditId').value = d.id;
   document.getElementById('drvName').value = d.name;
   document.getElementById('drvPin').value = d.pin;
   document.getElementById('drvLang').value = d.lang || 'da';
   document.getElementById('drvEmail').value = d.email || '';
+  document.getElementById('drvPhone').value = d.phone || '';
   document.getElementById('driverModal').classList.add('show');
 }
 
@@ -637,21 +645,22 @@ function saveDriver() {
     pin: document.getElementById('drvPin').value,
     lang: document.getElementById('drvLang').value,
     email: document.getElementById('drvEmail').value || null,
+    phone: document.getElementById('drvPhone').value || null,
   };
   if (!body.name || !body.pin) return toast('Name and PIN are required', true);
   if (!/^\d{4}$/.test(body.pin)) return toast('PIN must be exactly 4 digits', true);
   const method = id ? 'PUT' : 'POST';
   const path = id ? '/drivers/' + id : '/drivers';
   sapi(path, { method, body: JSON.stringify(body) })
-    .then(() => { closeModal('driverModal'); loadDrivers(); toast(id ? 'Driver updated!' : 'Driver added!'); })
+    .then(() => { closeModal('driverModal'); loadDrivers(); toast(id ? 'Truck updated!' : 'Truck added!'); })
     .catch(e => toast(e.message, true));
 }
 
 function confirmDeleteDriver(id) {
   const d = drivers.find(x => x.id === id);
-  confirmAction('⚠️', 'Delete Driver?', `"${d?.name}" will no longer be able to log in.`, 'Delete', () => {
+  confirmAction('⚠️', 'Delete Truck?', `"${d?.name}" will be removed.`, 'Delete', () => {
     sapi('/drivers/' + id, { method: 'DELETE' })
-      .then(() => { loadDrivers(); toast('Driver deleted'); })
+      .then(() => { loadDrivers(); toast('Truck deleted'); })
       .catch(e => toast(e.message, true));
   });
 }

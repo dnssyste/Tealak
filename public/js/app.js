@@ -836,7 +836,7 @@
       if (photos.length > 0) {
         photosHtml = '<div class="photo-gallery">' +
           photos.map(function(p) {
-            const src = p.url || ('/api/photos/' + p.id + '/file');
+            const src = p.url || ('/api/photos/file/' + p.filename);
             return '<div class="gallery-item"><img src="' + escHtml(src) + '" alt="Photo" loading="lazy"></div>';
           }).join('') +
         '</div>';

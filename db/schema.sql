@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS drivers (
   name VARCHAR(100) NOT NULL,
   pin VARCHAR(4) NOT NULL,
   lang VARCHAR(2) DEFAULT 'da',
+  email VARCHAR(255),
+  phone VARCHAR(20),
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -42,5 +44,3 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_driver_id ON jobs(driver_id);
 
--- Insert default driver for testing
-INSERT INTO drivers (name, pin) VALUES ('Test Driver', '1234') ON CONFLICT DO NOTHING;
