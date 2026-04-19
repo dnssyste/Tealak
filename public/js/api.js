@@ -38,10 +38,11 @@
 
   async function uploadPhotos(jobId, files, type) { const formData = new FormData(); for (let i = 0; i < files.length; i++) formData.append('photos', files[i]); if (type) formData.append('type', type); return request('POST', '/api/photos/' + jobId, formData, true); }
   async function getPhotos(jobId) { return request('GET', '/api/photos/' + jobId); }
+  async function getSetting(key) { const data = await request('GET', '/api/settings/' + key); return data.value; }
   async function deleteJob(id) { return request('DELETE', '/api/jobs/' + id); }
   async function deletePhoto(id) { return request('DELETE', '/api/photos/' + id); }
 
-  async function sendEmail(jobId) { return request('POST', '/api/jobs/' + jobId + '/email'); }
+  async function sendEmail(jobId, email) { return request('POST', '/api/jobs/' + jobId + '/email', email ? { email } : undefined); }
 
-  window.api = { login, getDrivers, logout, isLoggedIn, getDriverInfo, createJob, getJobs, getJob, updateJob, updateJobStatus, analyzeJob, analyzeDamage, uploadPhotos, getPhotos, deletePhoto, deleteJob, sendEmail };
+  window.api = { login, getDrivers, logout, isLoggedIn, getDriverInfo, createJob, getJobs, getJob, updateJob, updateJobStatus, analyzeJob, analyzeDamage, uploadPhotos, getPhotos, deletePhoto, deleteJob, sendEmail, getSetting };
 })();

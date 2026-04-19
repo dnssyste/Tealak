@@ -92,7 +92,8 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo, pool) {
     from: process.env.SMTP_FROM
   };
 
-  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+  const baseUrl = process.env.BASE_URL || 'https://app.teslak.net';
+  const truckName = job.driver_name || ('Truck ' + job.driver_id) || 'N/A';
 
   const galleryUrl = `${baseUrl}/gallery/${job.id}`;
 
@@ -163,29 +164,10 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo, pool) {
           <td style="padding:10px 8px;color:#6b7280;">Address</td>
           <td style="padding:10px 8px;">${job.address || 'N/A'}</td>
         </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:10px 8px;color:#6b7280;">Product</td>
-          <td style="padding:10px 8px;">${job.product || 'N/A'}</td>
-        </tr>
+
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 8px;color:#6b7280;">Delivery Date</td>
           <td style="padding:10px 8px;">${job.delivery_date || 'N/A'}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:10px 8px;color:#6b7280;">Antal</td>
-          <td style="padding:10px 8px;">${job.antal || 'N/A'}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:10px 8px;color:#6b7280;">Pos Nr</td>
-          <td style="padding:10px 8px;">${job.pos_nr || 'N/A'}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:10px 8px;color:#6b7280;">Production</td>
-          <td style="padding:10px 8px;">${job.production || 'N/A'}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:10px 8px;color:#6b7280;">Barcode</td>
-          <td style="padding:10px 8px;">${job.barcode || 'N/A'}</td>
         </tr>
         ${damageSection}
         ${missingSection}
@@ -207,7 +189,7 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo, pool) {
     <!-- Footer -->
     <div style="background:#f9fafb;padding:16px 32px;text-align:center;border-top:1px solid #e5e7eb;">
       <p style="margin:0;color:#9ca3af;font-size:12px;">
-        Teslak Delivery System &bull; ${new Date().toLocaleDateString('da-DK')}
+        Teslak Delivery System &bull; ${new Date().toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen' })}
       </p>
     </div>
   </div>
@@ -240,9 +222,9 @@ async function sendContainerReportEmail(db, report, photoFilenames) {
   const recipientsRes = await db.query("SELECT email, reply_to FROM email_recipients WHERE active = TRUE AND notify_container = TRUE");
   if (!recipientsRes.rows.length) return;
 
-  const baseUrl = process.env.BASE_URL || 'https://teslak.brbeck.net';
+  const baseUrl = process.env.BASE_URL || 'https://app.teslak.net';
   const now = new Date(report.created_at);
-  const dateStr = now.toLocaleString('da-DK', { dateStyle: 'short', timeStyle: 'short' });
+  const dateStr = now.toLocaleString('da-DK', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Copenhagen' });
 
   // Build photo thumbnails
   let photoHtml = '';

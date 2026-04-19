@@ -348,7 +348,7 @@ router.post('/smtp-profiles', requireServerAdmin, async (req, res) => {
     const { name, host, port, secure, username, password, from_address, is_default } = req.body;
     if (!name || !host || !username || !password) return res.status(400).json({ error: 'name, host, username, password required' });
     if (is_default) await db.query('UPDATE smtp_profiles SET is_default = false');
-    const r = await db.query('INSERT INTO smtp_profiles (name, host, port, secure, username, password, from_address, is_default) VALUES (,,,,,,,) RETURNING id', [name, host, port || 587, !!secure, username, password, from_address || username, !!is_default]);
+    const r = await db.query('INSERT INTO smtp_profiles (name, host, port, secure, username, password, from_address, is_default) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id', [name, host, port || 587, !!secure, username, password, from_address || username, !!is_default]);
     res.json({ success: true, id: r.rows[0].id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -190,6 +190,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .card{padding:16px;border-radius:10px}
   .toast{bottom:90px}
 }
+.subtab-btn{background:none;border:none;border-bottom:3px solid transparent;padding:8px 18px;font-size:14px;font-weight:500;color:var(--muted);cursor:pointer;margin-bottom:-2px;transition:color .2s,border-color .2s}.subtab-btn:hover{color:var(--accent)}.subtab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -295,12 +296,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         <div class="page-header">
           <h2>📸 Photo Library</h2>
         </div>
-        <div class="photo-search">
-          <input type="text" id="photoSearch" placeholder="🔍 Search by order nr...">
-          <input type="date" id="photoDateFrom" title="From date">
-          <input type="date" id="photoDateTo" title="To date">
+        <div class="subtab-bar" style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:0">
+          <button id="subtab-deliveries" class="subtab-btn active" onclick="switchPhotoTab('deliveries')">📦 Deliveries</button>
+          <button id="subtab-container" class="subtab-btn" onclick="switchPhotoTab('container')">🚛 Container Loading</button>
         </div>
-        <div id="photoLibrary"><div class="empty-state"><div class="empty-icon">⏳</div><p>Loading photos...</p></div></div>
+        <!-- Deliveries sub-panel -->
+        <div id="photopanel-deliveries">
+          <div class="photo-search">
+            <input type="text" id="photoSearch" placeholder="🔍 Search by order nr...">
+            <input type="date" id="photoDateFrom" title="From date">
+            <input type="date" id="photoDateTo" title="To date">
+          </div>
+          <div id="photoLibrary"><div class="empty-state"><div class="empty-icon">⏳</div><p>Loading photos...</p></div></div>
+        </div>
+        <!-- Container sub-panel -->
+        <div id="photopanel-container" style="display:none">
+          <div class="photo-search">
+            <input type="text" id="containerSearch" placeholder="🔍 Search by tur nr or container nr...">
+            <input type="date" id="containerDateFrom" title="From date">
+            <input type="date" id="containerDateTo" title="To date">
+          </div>
+          <div id="containerLibrary"><div class="empty-state"><div class="empty-icon">⏳</div><p>Loading container reports...</p></div></div>
+        </div>
       </div>
 
       <!-- SETTINGS -->
@@ -909,6 +926,106 @@ function sendPhotoEmail() {
 document.getElementById('photoSearch').addEventListener('input', () => renderPhotoLibrary());
 document.getElementById('photoDateFrom').addEventListener('change', () => renderPhotoLibrary());
 document.getElementById('photoDateTo').addEventListener('change', () => renderPhotoLibrary());
+document.getElementById('containerSearch').addEventListener('input', () => renderContainerLibrary());
+document.getElementById('containerDateFrom').addEventListener('change', () => renderContainerLibrary());
+document.getElementById('containerDateTo').addEventListener('change', () => renderContainerLibrary());
+
+let containerReports = [];
+let expandedContainer = null;
+let currentPhotoTab = 'deliveries';
+
+function switchPhotoTab(tab) {
+  currentPhotoTab = tab;
+  document.getElementById('photopanel-deliveries').style.display = tab === 'deliveries' ? '' : 'none';
+  document.getElementById('photopanel-container').style.display = tab === 'container' ? '' : 'none';
+  document.getElementById('subtab-deliveries').classList.toggle('active', tab === 'deliveries');
+  document.getElementById('subtab-container').classList.toggle('active', tab === 'container');
+  if (tab === 'container' && containerReports.length === 0) loadContainerLibrary();
+}
+
+function loadContainerLibrary() {
+  api('/container-reports/library').then(data => {
+    containerReports = (data || []).filter(r => r.photos && r.photos.length > 0);
+    renderContainerLibrary();
+  }).catch(e => {
+    document.getElementById('containerLibrary').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><p>' + e.message + '</p></div>';
+  });
+}
+
+const RATING_LABELS = { 1: '😞 Dårlig', 2: '😕 Under middel', 3: '😐 OK', 4: '🙂 God', 5: '😊 Fremragende' };
+
+function renderContainerLibrary() {
+  const el = document.getElementById('containerLibrary');
+  const search = (document.getElementById('containerSearch').value || '').toLowerCase();
+  const dateFrom = document.getElementById('containerDateFrom').value;
+  const dateTo = document.getElementById('containerDateTo').value;
+
+  let filtered = containerReports;
+  if (search) {
+    filtered = filtered.filter(r =>
+      (r.tur_nr && r.tur_nr.toLowerCase().includes(search)) ||
+      (r.container_nr && r.container_nr.toLowerCase().includes(search)) ||
+      (r.truck_name && r.truck_name.toLowerCase().includes(search)) ||
+      (r.comment && r.comment.toLowerCase().includes(search))
+    );
+  }
+  if (dateFrom) filtered = filtered.filter(r => r.created_at && r.created_at.substring(0,10) >= dateFrom);
+  if (dateTo) filtered = filtered.filter(r => r.created_at && r.created_at.substring(0,10) <= dateTo);
+
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🚛</div><p>No container reports found.</p></div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(r => {
+    const photoCount = r.photos ? r.photos.length : 0;
+    const date = r.created_at ? new Date(r.created_at).toLocaleDateString('da-DK') : '';
+    const isExpanded = expandedContainer === r.id;
+    const ratingLabel = RATING_LABELS[r.rating] || '';
+
+    let photosGrid = '';
+    if (isExpanded && r.photos) {
+      photosGrid = `<div class="photo-grid-lib">${r.photos.map(p =>
+        `<img src="/api/photos/file/${esc(p.filename)}" onclick="openLightbox('/api/photos/file/${esc(p.filename)}', '${esc(p.filename)}')" loading="lazy">`
+      ).join('')}</div>
+      <div class="photo-job-actions">
+        <button class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;" onclick="event.stopPropagation();deleteContainerReport('${r.id}')">🗑️ Delete Report</button>
+      </div>`;
+    }
+
+    return `<div class="photo-job-card" onclick="toggleContainerPhotos('${r.id}')"> 
+      <div class="photo-job-header">
+        <span class="photo-job-title">🚛 ${esc(r.truck_name || r.truck || '—')}${r.tur_nr ? ' · Tur ' + esc(r.tur_nr) : ''}${r.container_nr ? ' · Container ' + esc(r.container_nr) : '' }</span>
+        ${ratingLabel ? `<span style="font-size:13px">${esc(ratingLabel)}</span>` : '' }
+      </div>
+      <div class="photo-job-meta">
+        ${r.item_type ? `<span>📦 ${esc(r.item_type)}</span>` : '' }
+        <span>📅 ${date}</span>
+        <span>📷 ${photoCount} photo${photoCount !== 1 ? 's' : '' }</span>
+        ${r.comment ? `<span>💬 ${esc(r.comment)}</span>` : '' }
+      </div>
+      ${photosGrid}
+    </div>`;
+  }).join('');
+}
+
+function toggleContainerPhotos(id) {
+  id = parseInt(id);
+  expandedContainer = expandedContainer === id ? null : id;
+  renderContainerLibrary();
+}
+
+async function deleteContainerReport(id) {
+  if (!confirm('Delete this container report and all its photos?')) return;
+  try {
+    const resp = await fetch('/api/admin/container-reports/' + id, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Failed to delete');
+    toast('Container report deleted');
+    containerReports = [];
+    loadContainerLibrary();
+  } catch (e) { toast('Error: ' + e.message, true); }
+}
+
 
 // Keyboard shortcut for lightbox
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });

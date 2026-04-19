@@ -208,6 +208,46 @@ router.get('/photos/library', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/container-reports/library
+router.get('/container-reports/library', requireAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const result = await db.query(`
+      SELECT cr.*, d.name as driver_name,
+        (SELECT json_agg(json_build_object('id', crp.id, 'filename', crp.filename, 'created_at', crp.created_at))
+         FROM container_report_photos crp WHERE crp.report_id = cr.id) as photos
+      FROM container_reports cr
+      LEFT JOIN drivers d ON cr.driver_id = d.id
+      ORDER BY cr.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Container library error:', err.message);
+    res.status(500).json({ error: 'Failed to load container library' });
+  }
+});
+
+// DELETE /api/admin/container-reports/:id
+router.delete('/container-reports/:id', requireAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const id = req.params.id;
+    // get photos to delete files
+    const photos = await db.query('SELECT filename FROM container_report_photos WHERE report_id = $1', [id]);
+    const fs = require('fs');
+    for (const p of photos.rows) {
+      try { fs.unlinkSync('/data/photos/' + p.filename); } catch(e) {}
+    }
+    await db.query('DELETE FROM container_report_photos WHERE report_id = $1', [id]);
+    await db.query('DELETE FROM container_reports WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Container delete error:', err.message);
+    res.status(500).json({ error: 'Failed to delete container report' });
+  }
+});
+
+
 router.post('/photos/email', requireAdmin, async (req, res) => {
   try {
     const { job_id, email, message } = req.body;

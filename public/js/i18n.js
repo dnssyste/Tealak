@@ -84,8 +84,13 @@
       'job.noPhotos': 'Ingen billeder',
       'job.damageReport': 'Skaderapport',
       'job.resendEmail': 'Send Email Igen',
+      'job.deleteJob': 'Slet Levering',
+      'job.confirmDelete': 'Er du sikker på, at du vil slette denne levering?',
+      'job.deleted': 'Levering slettet',
       'job.edit': 'Rediger',
       'job.emailSent': 'Email sendt!',
+      'job.resendHint': 'Indtast en specifik e-mailadresse, eller lad den stå tom for at sende til alle konfigurerede modtagere.',
+      'job.send': 'Send',
 
       // Damage Report
       'dmg.title': 'Skaderapport',
@@ -235,8 +240,13 @@
       'job.noPhotos': 'No photos',
       'job.damageReport': 'Damage Report',
       'job.resendEmail': 'Resend Email',
+      'job.deleteJob': 'Delete Delivery',
+      'job.confirmDelete': 'Are you sure you want to delete this delivery?',
+      'job.deleted': 'Delivery deleted',
       'job.edit': 'Edit',
       'job.emailSent': 'Email sent!',
+      'job.resendHint': 'Enter a specific email address, or leave blank to send to all configured recipients.',
+      'job.send': 'Send',
 
       // Damage Report
       'dmg.title': 'Damage Report',

@@ -236,6 +236,53 @@
   }
 
   // ===== DASHBOARD VIEW =====
+
+  function showResendModal(jobId) {
+    // Remove any existing modal
+    var existing = document.getElementById('resend-modal-overlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'resend-modal-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">' +
+        '<h3 style="margin:0 0 8px;font-size:18px;">📧 ' + (t('job.resendEmail') || 'Resend Email') + '</h3>' +
+        '<p style="margin:0 0 16px;color:#666;font-size:14px;">' + (t('job.resendHint') || 'Enter a specific email address, or leave blank to send to all configured recipients.') + '</p>' +
+        '<input type="email" id="resend-email-input" class="form-input" placeholder="email@example.com" style="margin-bottom:16px;width:100%;box-sizing:border-box;">' +
+        '<div style="display:flex;gap:10px;">' +
+          '<button id="resend-cancel-btn" class="btn btn-secondary" style="flex:1;">✕ ' + (t('common.cancel') || 'Cancel') + '</button>' +
+          '<button id="resend-send-btn" class="btn btn-primary" style="flex:1;">📧 ' + (t('job.send') || 'Send') + '</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('resend-cancel-btn').addEventListener('click', function() {
+      overlay.remove();
+    });
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    document.getElementById('resend-send-btn').addEventListener('click', async function() {
+      haptic();
+      var emailVal = document.getElementById('resend-email-input').value.trim();
+      this.disabled = true;
+      this.textContent = '⏳';
+      try {
+        await api.sendEmail(jobId, emailVal || null);
+        toast(t('job.emailSent') || 'Email sent!', 'success');
+        overlay.remove();
+      } catch (e) {
+        toast(e.message || 'Failed to send', 'error');
+        this.disabled = false;
+        this.innerHTML = '📧 ' + (t('job.send') || 'Send');
+      }
+    });
+  }
+
   function renderDashboard() {
     let html = renderHeader() +
       '<div class="page-content">' +
@@ -485,16 +532,11 @@
       const data = analysis.job || analysis.data || analysis;
 
       s.data = {
-        tour_nr: data.tour_nr || '',
+        tour_nr: data.tour_nr || data.tur_nr || '',
         order_nr: data.order_nr || '',
-        customer: data.customer || '',
+        customer: data.customer || data.customer_name || '',
         address: data.address || '',
-        product: data.product || '',
-        delivery_date: data.delivery_date || '',
-        count: data.count || '',
-        pos_nr: data.pos_nr || '',
-        production: data.production || '',
-        barcode: data.barcode || ''
+        delivery_date: new Date().toISOString().slice(0,10)
       };
 
       s._analyzing = false;
@@ -518,16 +560,11 @@
       { key: 'order_nr', label: t('new.orderNr') },
       { key: 'customer', label: t('new.customer') },
       { key: 'address', label: t('new.address') },
-      { key: 'product', label: t('new.product') },
-      { key: 'delivery_date', label: t('new.deliveryDate'), type: 'date' },
-      { key: 'count', label: t('new.count'), type: 'number' },
-      { key: 'pos_nr', label: t('new.posNr') },
-      { key: 'production', label: t('new.production') },
-      { key: 'barcode', label: t('new.barcode') }
+      { key: 'delivery_date', label: t('new.deliveryDate'), type: 'date', default: new Date().toISOString().slice(0,10) }
     ];
 
     let fieldsHtml = fields.map(function(f) {
-      const val = d[f.key] || '';
+      const val = d[f.key] || f.default || '';
       return '<div class="form-group">' +
         '<label class="form-label">' + f.label + '</label>' +
         '<input type="' + (f.type || 'text') + '" class="form-input" data-field="' + f.key + '" value="' + escHtml(val) + '">' +
@@ -624,12 +661,7 @@
       [t('new.orderNr'), d.order_nr],
       [t('new.customer'), d.customer],
       [t('new.address'), d.address],
-      [t('new.product'), d.product],
-      [t('new.deliveryDate'), d.delivery_date],
-      [t('new.count'), d.count],
-      [t('new.posNr'), d.pos_nr],
-      [t('new.production'), d.production],
-      [t('new.barcode'), d.barcode]
+      [t('new.deliveryDate'), d.delivery_date]
     ];
 
     let summaryHtml = summaryFields.map(function(f) {
@@ -874,13 +906,7 @@
         [t('new.tourNr'), job.tour_nr],
         [t('new.orderNr'), job.order_nr],
         [t('new.customer'), job.customer],
-        [t('new.address'), job.address],
-        [t('new.product'), job.product],
-        [t('new.deliveryDate'), job.delivery_date],
-        [t('new.count'), job.count],
-        [t('new.posNr'), job.pos_nr],
-        [t('new.production'), job.production],
-        [t('new.barcode'), job.barcode]
+        [t('new.deliveryDate'), job.delivery_date]
       ];
 
       let infoHtml = infoFields.map(function(f) {
@@ -926,18 +952,11 @@
           '<button class="btn btn-secondary" id="edit-job-btn" style="flex:1;">✏️ ' + t('job.edit') + '</button>' +
           '<button class="btn btn-primary" id="resend-email-btn" style="flex:1;">📧 ' + t('job.resendEmail') + '</button>' +
         '</div>' +
-        '<div class="mt-16" style="text-align:center;" id="delete-job-container"></div>';
+        '<div id="delete-job-container"></div>';
 
-      document.getElementById('resend-email-btn').addEventListener('click', async function() {
+      document.getElementById('resend-email-btn').addEventListener('click', function() {
         haptic();
-        this.disabled = true;
-        try {
-          await api.sendEmail(jobId);
-          toast(t('job.emailSent'), 'success');
-        } catch (e) {
-          toast(e.message, 'error');
-        }
-        this.disabled = false;
+        showResendModal(jobId);
       });
 
       document.getElementById('edit-job-btn').addEventListener('click', function() {
@@ -953,12 +972,7 @@
             order_nr: job.order_nr || '',
             customer: job.customer || '',
             address: job.address || '',
-            product: job.product || '',
-            delivery_date: job.delivery_date || '',
-            count: job.count || '',
-            pos_nr: job.pos_nr || '',
-            production: job.production || '',
-            barcode: job.barcode || ''
+            delivery_date: job.delivery_date || ''
           },
           status: job.status,
           damageDesc: job.damage_report || ''
@@ -974,7 +988,7 @@
             var delContainer = document.getElementById('delete-job-container');
             if (delContainer) {
               delContainer.innerHTML = 
-                '<button class="btn" id="delete-job-btn" style="background:#dc2626;color:#fff;width:100%;">' + t('job.deleteJob') + '</button>';
+                '<div class="flex-row mt-8" style="gap:10px;"><button class="btn" id="delete-job-btn" style="background:#dc2626;color:#fff;flex:1;">🗑️ ' + t('job.deleteJob') + '</button></div>';
               var delBtn = document.getElementById('delete-job-btn');
               if (delBtn) {
                 delBtn.addEventListener('click', async function() {
@@ -1235,11 +1249,7 @@
       '<div class="page-content">' +
         '<div class="form-group">' +
           '<label class="form-label">' + t('dmg.selectDelivery') + '</label>' +
-          '<div class="search-box">' +
-            '<span class="search-icon">🔍</span>' +
-            '<input type="text" class="form-input" id="dmg-search" placeholder="' + t('dmg.searchDelivery') + '">' +
-          '</div>' +
-          '<div id="dmg-results"></div>' +
+          '<select class="form-input" id="dmg-job-select"><option value="">' + (t('dmg.loadingJobs') || 'Loading...') + '</option></select>' +
         '</div>' +
         '<div class="section-title">' + t('dmg.evidence') + '</div>' +
         '<div id="dmg-photos"></div>' +
@@ -1265,13 +1275,30 @@
 
     render(html);
 
-    // Search
-    let searchTimer;
-    document.getElementById('dmg-search').addEventListener('input', function() {
-      clearTimeout(searchTimer);
-      const val = this.value;
-      searchTimer = setTimeout(function() { searchJobs(val); }, 300);
-    });
+    // Load truck's jobs into dropdown
+    (async function() {
+      const sel = document.getElementById('dmg-job-select');
+      if (!sel) return;
+      try {
+        const driver = state.driver;
+        const data = await api.getJobs({ driver_id: driver ? driver.id : undefined });
+        const jobs = (data.jobs || data || []);
+        if (jobs.length === 0) {
+          sel.innerHTML = '<option value="">' + (t('dmg.noJobs') || 'No deliveries found') + '</option>';
+        } else {
+          sel.innerHTML = '<option value="">' + (t('dmg.selectDelivery') || 'Select delivery...') + '</option>' +
+            jobs.map(function(j) {
+              const label = [j.order_nr, j.customer, j.address].filter(Boolean).join(' — ');
+              return '<option value="' + j.id + '">' + escHtml(label || 'Job #' + j.id) + '</option>';
+            }).join('');
+        }
+      } catch (e) {
+        sel.innerHTML = '<option value="">' + (t('dmg.noJobs') || 'Could not load jobs') + '</option>';
+      }
+      sel.addEventListener('change', function() {
+        dmgState.jobId = this.value || null;
+      });
+    })();
 
     // Camera
     document.getElementById('dmg-camera-trigger').addEventListener('click', function() {

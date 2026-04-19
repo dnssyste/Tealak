@@ -1,5 +1,21 @@
 const express = require('express');
 const router = express.Router();
+
+// Public setting fetch (only non-sensitive keys allowed)
+router.get('/settings/:key', async (req, res) => {
+  const ALLOWED_PUBLIC = ['allow_trucker_delete', 'email_auto_send'];
+  const { key } = req.params;
+  if (!ALLOWED_PUBLIC.includes(key)) return res.status(403).json({ error: 'Not allowed' });
+  try {
+    const db = req.app.locals.db;
+    const result = await db.query("SELECT value FROM settings WHERE key = $1", [key]);
+    const value = result.rows.length > 0 ? result.rows[0].value : null;
+    res.json({ key, value });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const { v4: uuidv4 } = require('uuid');
 const { analyzePhotos } = require('../utils/ai');
 const { sendJobEmail } = require('../utils/email');
@@ -32,7 +48,7 @@ router.get('/', async (req, res) => {
     const db = req.app.locals.db;
     const { status, driver_id, date_from, date_to } = req.query;
     let query = `
-      SELECT j.*, d.name as driver_name,
+      SELECT j.*, j.tur_nr AS tour_nr, j.customer_name AS customer, d.name as driver_name,
         (SELECT COUNT(*) FROM job_photos WHERE job_id = j.id) as photo_count
       FROM jobs j
       LEFT JOIN drivers d ON j.driver_id = d.id
@@ -73,7 +89,7 @@ router.get('/:id', async (req, res) => {
   try {
     const db = req.app.locals.db;
     const jobResult = await db.query(
-      `SELECT j.*, d.name as driver_name
+      `SELECT j.*, j.tur_nr AS tour_nr, j.customer_name AS customer, d.name as driver_name
        FROM jobs j
        LEFT JOIN drivers d ON j.driver_id = d.id
        WHERE j.id = $1`,
@@ -112,6 +128,10 @@ router.patch('/:id', async (req, res) => {
     const updates = [];
     const values = [];
     let paramIdx = 1;
+
+    // Accept frontend aliases
+    if (req.body.tour_nr !== undefined && req.body.tur_nr === undefined) req.body.tur_nr = req.body.tour_nr;
+    if (req.body.customer !== undefined && req.body.customer_name === undefined) req.body.customer_name = req.body.customer;
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
@@ -286,9 +306,12 @@ router.post('/:id/analyze', async (req, res) => {
       ]
     );
 
+    const jobRow = updateResult.rows[0];
+    jobRow.tour_nr = jobRow.tur_nr;
+    jobRow.customer = jobRow.customer_name;
     res.json({
       success: true,
-      job: updateResult.rows[0],
+      job: jobRow,
       ai_result: aiResult
     });
   } catch (err) {
@@ -331,14 +354,13 @@ router.post("/:id/analyze-damage", async (req, res) => {
   }
 });
 // POST /api/jobs/:id/email - send job card email
+// If email provided in body: send to that address only
+// If no email: send to all active recipients based on job status
 router.post('/:id/email', async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email address is required' });
-    }
-
+    const { email } = req.body || {};
     const db = req.app.locals.db;
+
     const jobResult = await db.query(
       `SELECT j.*, d.name as driver_name FROM jobs j
        LEFT JOIN drivers d ON j.driver_id = d.id
@@ -356,15 +378,37 @@ router.post('/:id/email', async (req, res) => {
     );
 
     const job = jobResult.rows[0];
-    await sendJobEmail(job, photosResult.rows, email, null, db);
 
-    // Update job
-    await db.query(
-      'UPDATE jobs SET email_sent = true, email_sent_to = $1 WHERE id = $2',
-      [email, req.params.id]
+    if (email) {
+      // Send to specific address
+      await sendJobEmail(job, photosResult.rows, email, null, db);
+      await db.query(
+        'UPDATE jobs SET email_sent = true, email_sent_to = $1 WHERE id = $2',
+        [email, req.params.id]
+      );
+      return res.json({ success: true, message: 'Email sent to ' + email });
+    }
+
+    // No email specified — send to all active recipients matching job status
+    const statusMap = { delivered: 'notify_delivered', completed: 'notify_delivered', damaged: 'notify_damaged', missing: 'notify_missing' };
+    const notifyCol = statusMap[job.status] || 'notify_delivered';
+    const recipients = await db.query(
+      'SELECT email, reply_to FROM email_recipients WHERE active = true AND ' + notifyCol + ' = true'
     );
 
-    res.json({ success: true, message: 'Email sent successfully' });
+    if (recipients.rows.length === 0) {
+      return res.json({ success: true, message: 'No recipients configured for this status' });
+    }
+
+    const sentTo = [];
+    for (const r of recipients.rows) {
+      await sendJobEmail(job, photosResult.rows, r.email, r.reply_to, db);
+      sentTo.push(r.email);
+    }
+    const emailList = sentTo.join(', ');
+    await db.query('UPDATE jobs SET email_sent = true, email_sent_to = $1 WHERE id = $2', [emailList, req.params.id]);
+
+    res.json({ success: true, message: 'Email sent to: ' + emailList });
   } catch (err) {
     console.error('Email error:', err);
     res.status(500).json({ error: 'Failed to send email: ' + err.message });

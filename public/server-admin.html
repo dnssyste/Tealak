@@ -253,7 +253,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
             <div class="form-row">
               <div class="form-group">
                 <label>Port</label>
-                <input type="number" id="spPort" placeholder="587" value="587">
+                <input type="number" id="spPort" placeholder="587" value="587" onchange="autoSetSecure(this.value)">
+              <small style="color:#888;font-size:11px">587 = STARTTLS (SSL &#10005;) &nbsp;&bull;&nbsp; 465 = SSL (SSL &#10003;)</small>
               </div>
               <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px;">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
@@ -282,6 +283,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
           </div>
           <div class="modal-footer">
             <button class="btn btn-outline" onclick="closeSmtpProfileModal()">Cancel</button>
+            <button class="btn btn-outline" id="smtpTestBtn" style="display:none;" onclick="testSmtpProfileFromModal()">&#128228; Test</button>
             <button class="btn btn-primary" onclick="saveSmtpProfile()">&#128190; Save Profile</button>
           </div>
         </div>
@@ -607,6 +609,7 @@ function saveTypeAssignments() {
 
 function showAddSmtpProfile() {
   document.getElementById('smtpProfileId').value = '';
+  document.getElementById('smtpTestBtn').style.display = 'none';
   document.getElementById('smtpProfileModalTitle').textContent = 'Add SMTP Profile';
   document.getElementById('spName').value = '';
   document.getElementById('spHost').value = '';
@@ -624,6 +627,7 @@ function editSmtpProfile(id) {
   const p = smtpProfiles.find(x => x.id === id);
   if (!p) return;
   document.getElementById('smtpProfileId').value = id;
+  document.getElementById('smtpTestBtn').style.display = 'inline-flex';
   document.getElementById('smtpProfileModalTitle').textContent = 'Edit SMTP Profile';
   document.getElementById('spName').value = p.name;
   document.getElementById('spHost').value = p.host;
@@ -667,10 +671,18 @@ function setDefaultSmtpProfile(id) {
     .catch(e => toast(e.message, true));
 }
 
+function autoSetSecure(port) {
+  const p = parseInt(port);
+  document.getElementById('spSecure').checked = (p === 465);
+}
+function testSmtpProfileFromModal() {
+  const id = document.getElementById('smtpProfileId').value;
+  if (id) testSmtpProfile(parseInt(id));
+}
 function testSmtpProfile(id) {
   const email = prompt('Send test email to:');
   if (!email) return;
-  sapi('/smtp-profiles/' + id + '/test', { method: 'POST', body: JSON.stringify({ email }) })
+  sapi('/smtp-profiles/' + id + '/test', { method: 'POST', body: JSON.stringify({ to: email }) })
     .then(data => toast(data.message || 'Test email sent!'))
     .catch(e => toast(e.message, true));
 }

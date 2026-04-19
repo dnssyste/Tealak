@@ -4,20 +4,20 @@ const path = require("path");
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const STICKER_PROMPT = `Analyze this delivery sticker/label photo in maximum detail. Extract ALL of these fields:
-- order_nr: The order number (look for "Order nr", "Ordrenr", "Order", "Bestilling" or similar, e.g. "DK 43219235")
-- tur_nr: The tour/route number (look for "Tur nr", "Tur", "Tour", "Rute" or similar, usually a letter followed by digits like "I185", "A23", "B456"). This is NOT the order number.
-- customer_name: The recipient/customer name (look for "Modtager", "Kunde", "Recipient", "Name", "Navn" or the name printed near the address)
-- address: The FULL delivery address including street, house number, postal code, city, and country if visible
-- product: Product description or name (look for "Produkt", "Vare", "Product", "Description", "Beskrivelse", item names, or any product identifiers)
-- delivery_date: The delivery date/time shown on the sticker (look for date stamps, "Dato", "Date", "Levering", "Delivery" etc). Use ISO format YYYY-MM-DD or YYYY-MM-DDTHH:mm if time is visible. If no date is visible, use null.
-- antal: Quantity/number of items (look for "Antal", "Stk", "Qty", "Quantity", "Kolli", "Pcs" or any count)
-- pos_nr: Position number (look for "Pos", "Position", "Pos nr" or similar reference numbers)
-- production: Production or batch information (look for "Produktion", "Production", "Batch", "Parti", "Lot" or manufacturing references)
-- barcode: Any barcode numbers, tracking numbers, or reference codes visible (look for long numeric sequences, "Ref", "Track", "Stregkode", "SSCC", "EAN")
-Extract as much information as possible from the sticker. Read ALL text visible on the label.
-Return as JSON: {"order_nr": "...", "tur_nr": "...", "customer_name": "...", "address": "...", "product": "...", "delivery_date": "...", "antal": ..., "pos_nr": "...", "production": "...", "barcode": "..."}
-For antal, return as a number (integer). For all other fields, return as strings. If a field cannot be found or read, use null.`;
+const STICKER_PROMPT = `You are an expert OCR reader for Nordic logistics delivery labels (INVITA, HTH, Nobia, etc).
+Extract exactly these 5 fields:
+
+1. order_nr - Order number. Labeled "Order nr", "Ordrenr", "Bestillingsnr". Examples: "IA 11084669", "DK 43219235". Usually starts with 2 letters.
+2. tur_nr - Tour/route number. Labeled "Tur nr" or "Tur". Is a short number or code like "2226" or "I185". DIFFERENT from order_nr.
+3. customer_name - Recipient name. The customer or company name printed at the TOP of the address block, BEFORE the street address. Example: "A. Enggaard Byggeplads V15".
+4. address - Full delivery address. The street address, city, and postal code BELOW the customer name in the address block. Example: "Poulstrupvej 68, 9330 Dronninglund".
+5. delivery_date - Delivery date. Labeled "Delivery day", "Leveringsdato", "Prod dag", "Dato" or similar.
+   - Format on label may be YY-MM-DD (e.g. "16-04-26" means 2026-04-16) or DD.MM.YYYY or other variants.
+   - Always return as ISO 8601: YYYY-MM-DD. If year is 2 digits (e.g. 26), assume 20XX.
+   - Return null only if truly not found.
+
+Return ONLY valid JSON:
+{"order_nr": "...", "tur_nr": "...", "customer_name": "...", "address": "...", "delivery_date": "YYYY-MM-DD or null"}`;
 
 const DAMAGE_PROMPT = `You are a freight damage assessment expert. Analyze these photos of damaged/missing delivery items in extreme detail.
 Provide a comprehensive damage report including:
