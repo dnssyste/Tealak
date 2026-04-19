@@ -53,12 +53,12 @@ router.get('/recipients', requireAdmin, async (req, res) => {
 
 router.post('/recipients', requireAdmin, async (req, res) => {
   try {
-    const { email, name, reply_to, notify_delivered, notify_damaged, notify_missing } = req.body;
+    const { email, name, reply_to, notify_delivered, notify_damaged, notify_missing, notify_container } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
     const db = req.app.locals.db;
     const result = await db.query(
-      'INSERT INTO email_recipients (email, name, reply_to, notify_delivered, notify_damaged, notify_missing) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [email, name || '', reply_to || null, notify_delivered !== false, notify_damaged !== false, notify_missing !== false]
+      'INSERT INTO email_recipients (email, name, reply_to, notify_delivered, notify_damaged, notify_missing, notify_container) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [email, name || '', reply_to || null, notify_delivered !== false, notify_damaged !== false, notify_missing !== false, notify_container !== false]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -69,11 +69,11 @@ router.post('/recipients', requireAdmin, async (req, res) => {
 
 router.put('/recipients/:id', requireAdmin, async (req, res) => {
   try {
-    const { email, name, reply_to, notify_delivered, notify_damaged, notify_missing, active } = req.body;
+    const { email, name, reply_to, notify_delivered, notify_damaged, notify_missing, notify_container, active } = req.body;
     const db = req.app.locals.db;
     const result = await db.query(
-      'UPDATE email_recipients SET email=$1, name=$2, reply_to=$3, notify_delivered=$4, notify_damaged=$5, notify_missing=$6, active=$7 WHERE id=$8 RETURNING *',
-      [email, name, reply_to || null, notify_delivered, notify_damaged, notify_missing, active, req.params.id]
+      'UPDATE email_recipients SET email=$1, name=$2, reply_to=$3, notify_delivered=$4, notify_damaged=$5, notify_missing=$6, notify_container=$7, active=$8 WHERE id=$9 RETURNING *',
+      [email, name, reply_to || null, notify_delivered, notify_damaged, notify_missing, notify_container, active, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(result.rows[0]);
@@ -317,6 +317,125 @@ router.post('/photos/email', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Photo email error:', err.message);
     res.status(500).json({ error: 'Failed to send photo email: ' + err.message });
+  }
+});
+
+
+
+// ===== SMTP PROFILES =====
+
+// GET all profiles
+router.get('/smtp-profiles', async (req, res) => {
+  try {
+    const result = await db.query('SELECT id, name, host, port, secure, username, from_address, is_default, created_at FROM smtp_profiles ORDER BY is_default DESC, id ASC');
+    // Also get type assignments
+    const assign = await db.query("SELECT key, value FROM settings WHERE key IN ('smtp_profile_delivery','smtp_profile_container','smtp_profile_damage')");
+    const assignments = {};
+    assign.rows.forEach(r => { assignments[r.key] = r.value; });
+    res.json({ profiles: result.rows, assignments });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create profile
+router.post('/smtp-profiles', async (req, res) => {
+  try {
+    const { name, host, port, secure, username, password, from_address, is_default } = req.body;
+    if (!name || !host) return res.status(400).json({ error: 'Name and host are required' });
+    if (is_default) await db.query('UPDATE smtp_profiles SET is_default = false');
+    const result = await db.query(
+      'INSERT INTO smtp_profiles (name, host, port, secure, username, password, from_address, is_default) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+      [name, host, parseInt(port)||587, !!secure, username||null, password||null, from_address||null, !!is_default]
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT update profile
+router.put('/smtp-profiles/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, host, port, secure, username, password, from_address, is_default } = req.body;
+    if (!name || !host) return res.status(400).json({ error: 'Name and host are required' });
+    if (is_default) await db.query('UPDATE smtp_profiles SET is_default = false');
+    // Only update password if provided
+    if (password && password.trim()) {
+      await db.query(
+        'UPDATE smtp_profiles SET name=$1, host=$2, port=$3, secure=$4, username=$5, password=$6, from_address=$7, is_default=$8 WHERE id=$9',
+        [name, host, parseInt(port)||587, !!secure, username||null, password, from_address||null, !!is_default, id]
+      );
+    } else {
+      await db.query(
+        'UPDATE smtp_profiles SET name=$1, host=$2, port=$3, secure=$4, username=$5, from_address=$6, is_default=$7 WHERE id=$8',
+        [name, host, parseInt(port)||587, !!secure, username||null, from_address||null, !!is_default, id]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE profile
+router.delete('/smtp-profiles/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM smtp_profiles WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST set default
+router.post('/smtp-profiles/:id/set-default', async (req, res) => {
+  try {
+    await db.query('UPDATE smtp_profiles SET is_default = false');
+    await db.query('UPDATE smtp_profiles SET is_default = true WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST test a specific profile
+router.post('/smtp-profiles/:id/test', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+    const result = await db.query('SELECT * FROM smtp_profiles WHERE id=$1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Profile not found' });
+    const p = result.rows[0];
+    const transporter = nodemailer.createTransport({
+      host: p.host,
+      port: p.port,
+      secure: p.secure,
+      auth: { user: p.username, pass: p.password },
+    });
+    await transporter.sendMail({
+      from: p.from_address || p.username,
+      to: email,
+      subject: `Teslak SMTP Test - ${p.name}`,
+      html: `<p>Test email from SMTP profile <strong>${p.name}</strong> (${p.host}:${p.port})</p>`,
+    });
+    res.json({ success: true, message: `Test email sent to ${email}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT type assignments
+router.put('/smtp-type-assignments', async (req, res) => {
+  try {
+    const { delivery, container, damage } = req.body;
+    await db.query("UPDATE settings SET value=$1, updated_at=NOW() WHERE key='smtp_profile_delivery'", [delivery||'']);
+    await db.query("UPDATE settings SET value=$1, updated_at=NOW() WHERE key='smtp_profile_container'", [container||'']);
+    await db.query("UPDATE settings SET value=$1, updated_at=NOW() WHERE key='smtp_profile_damage'", [damage||'']);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

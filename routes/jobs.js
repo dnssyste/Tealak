@@ -297,6 +297,39 @@ router.post('/:id/analyze', async (req, res) => {
   }
 });
 
+
+// POST /api/jobs/:id/analyze-damage - AI damage assessment of photos
+router.post("/:id/analyze-damage", async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const jobResult = await db.query("SELECT * FROM jobs WHERE id = $1", [req.params.id]);
+    if (jobResult.rows.length === 0) return res.status(404).json({ error: "Job not found" });
+    // Get damage photos only
+    const photosResult = await db.query("SELECT * FROM job_photos WHERE job_id = $1 AND photo_type = $2", [req.params.id, "damage"]);
+    if (photosResult.rows.length === 0) return res.status(400).json({ error: "No damage photos to analyze" });
+    const imagePaths = photosResult.rows.map(p => "/data/photos/" + p.filename);
+    const aiResult = await analyzePhotos(imagePaths, "damage");
+    let parsed = aiResult;
+    if (Array.isArray(parsed)) parsed = parsed[0];
+    // Build detailed report from AI
+    const parts = [];
+    if (parsed.damage_type) parts.push("Type: " + parsed.damage_type);
+    if (parsed.severity) parts.push("Severity: " + parsed.severity.toUpperCase());
+    if (parsed.description) parts.push("\nDescription: " + parsed.description);
+    if (parsed.affected_items) parts.push("\nAffected Items: " + parsed.affected_items);
+    if (parsed.possible_cause) parts.push("\nPossible Cause: " + parsed.possible_cause);
+    if (parsed.recommended_action) parts.push("\nRecommended Action: " + parsed.recommended_action);
+    const fullReport = parts.join("\n");
+    // Combine driver description with AI report
+    const existingReport = jobResult.rows[0].damage_report || "";
+    const combined = existingReport ? existingReport + "\n\n--- AI Assessment ---\n" + fullReport : "--- AI Assessment ---\n" + fullReport;
+    await db.query("UPDATE jobs SET damage_report = $1, ai_raw_response = $2 WHERE id = $3", [combined, JSON.stringify(aiResult), req.params.id]);
+    res.json({ success: true, damage_report: combined, ai_result: aiResult });
+  } catch (err) {
+    console.error("Damage analyze error:", err);
+    res.status(500).json({ error: "Damage analysis failed: " + err.message });
+  }
+});
 // POST /api/jobs/:id/email - send job card email
 router.post('/:id/email', async (req, res) => {
   try {
@@ -335,6 +368,49 @@ router.post('/:id/email', async (req, res) => {
   } catch (err) {
     console.error('Email error:', err);
     res.status(500).json({ error: 'Failed to send email: ' + err.message });
+  }
+});
+
+
+// DELETE a job and its photos
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = req.app.locals.db;
+    
+    // Check if trucker delete is allowed
+    if (req.query.source === 'trucker') {
+      const setting = await db.query("SELECT value FROM settings WHERE key = 'allow_trucker_delete'");
+      if (setting.rows.length > 0 && setting.rows[0].value !== 'true') {
+        return res.status(403).json({ error: 'Job deletion is disabled for truck drivers' });
+      }
+    }
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Get photos for this job so we can delete files
+    const photosResult = await db.query('SELECT filename FROM job_photos WHERE job_id = $1', [id]);
+    
+    // Delete photo files from disk
+    for (const photo of photosResult.rows) {
+      const filePath = path.join('/data/photos', photo.filename);
+      try { fs.unlinkSync(filePath); } catch (e) { /* file may not exist */ }
+    }
+    
+    // Delete photos from DB
+    await db.query('DELETE FROM job_photos WHERE job_id = $1', [id]);
+    
+    // Delete job
+    const result = await db.query('DELETE FROM jobs WHERE id = $1 RETURNING id', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    
+    res.json({ success: true, message: 'Job deleted' });
+  } catch (err) {
+    console.error('Delete job error:', err);
+    res.status(500).json({ error: 'Failed to delete job' });
   }
 });
 

@@ -75,6 +75,7 @@
     else if (route === '/deliveries') renderDeliveries();
     else if (route.startsWith('/job/')) renderJobDetail(route.split('/job/')[1]);
     else if (route === '/damage-report') renderDamageReport();
+    else if (route === '/container-report') renderContainerReport();
     else navigate('#/dashboard');
   }
 
@@ -248,6 +249,7 @@
           '<button class="action-btn action-primary" onclick="window._nav(\'#/new-delivery\')"><span class="action-icon">📦</span>' + t('dash.newDelivery') + '</button>' +
           '<button class="action-btn" onclick="window._nav(\'#/deliveries\')"><span class="action-icon">📋</span>' + t('dash.myDeliveries') + '</button>' +
           '<button class="action-btn" onclick="window._nav(\'#/damage-report\')"><span class="action-icon">⚠️</span>' + t('dash.damageReport') + '</button>' +
+          '<button class="action-btn" onclick="window._nav(\'#/container-report\')"><span class="action-icon">🚛</span>' + t('dash.containerReport') + '</button>' +
         '</div>' +
         '<div class="section-title">' + t('dash.recentTitle') + '</div>' +
         '<div id="recent-jobs"><div class="loading-overlay"><div class="spinner"></div></div></div>' +
@@ -320,6 +322,38 @@
     });
   }
 
+  // ===== PHOTO ROTATION UTILS =====
+  async function rotateImageFile(photoObj) {
+    if (!photoObj.rotation) return photoObj.file;
+    return new Promise(function(resolve) {
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var deg = ((photoObj.rotation % 360) + 360) % 360;
+        if (deg === 90 || deg === 270) {
+          canvas.width = img.height; canvas.height = img.width;
+        } else {
+          canvas.width = img.width; canvas.height = img.height;
+        }
+        var ctx = canvas.getContext('2d');
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(deg * Math.PI / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        canvas.toBlob(function(blob) {
+          resolve(new File([blob], photoObj.file.name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.92);
+      };
+      img.src = photoObj.preview;
+    });
+  }
+  async function getRotatedFiles(photos) {
+    var files = [];
+    for (var i = 0; i < photos.length; i++) {
+      files.push(await rotateImageFile(photos[i]));
+    }
+    return files;
+  }
+
   // ===== NEW DELIVERY VIEW =====
   function renderNewDelivery() {
     const s = state.newDelivery;
@@ -349,7 +383,7 @@
     if (s.photos.length > 0) {
       photosHtml = '<div class="photo-grid">' +
         s.photos.map(function(p, i) {
-          return '<div class="photo-thumb"><img src="' + p.preview + '" alt=""><button class="photo-delete" data-idx="' + i + '">✕</button></div>';
+          return '<div class="photo-thumb"><img src="' + p.preview + '" alt="" style="transform:rotate(' + (p.rotation||0) + 'deg)"><button class="photo-rotate" data-idx="' + i + '">↻</button><button class="photo-delete" data-idx="' + i + '">✕</button></div>';
         }).join('') +
       '</div>';
     }
@@ -399,6 +433,14 @@
         renderStep1();
       });
     });
+    document.querySelectorAll('.photo-rotate').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); haptic();
+        const idx = parseInt(this.getAttribute('data-idx'));
+        s.photos[idx].rotation = ((s.photos[idx].rotation || 0) + 90) % 360;
+        renderStep1();
+      });
+    });
   }
 
   function handlePhotoCapture(e) {
@@ -408,7 +450,7 @@
       const file = files[i];
       const reader = new FileReader();
       reader.onload = function(ev) {
-        state.newDelivery.photos.push({ file: file, preview: ev.target.result });
+        state.newDelivery.photos.push({ file: file, preview: ev.target.result, rotation: 0 });
         renderStep1();
       };
       reader.readAsDataURL(file);
@@ -418,17 +460,21 @@
   async function doAnalyze() {
     haptic();
     const s = state.newDelivery;
+    if (s._analyzing) return; // prevent double-click
+    s._analyzing = true;
     const el = document.getElementById('step-content');
-    if (!el) return;
+    if (!el) { s._analyzing = false; return; }
 
     el.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><div class="loading-text">' + t('new.analyzing') + '</div><div class="text-sm text-muted">' + t('new.analyzingDesc') + '</div></div>';
 
     try {
-      // Create job
-      const driver = state.driver;
-      const jobResult = await api.createJob(driver ? driver.id : undefined);
-      const job = jobResult.job || jobResult;
-      s.jobId = job.id;
+      // Create job only if we don't already have one
+      if (!s.jobId) {
+        const driver = state.driver;
+        const jobResult = await api.createJob(driver ? driver.id : undefined);
+        const job = jobResult.job || jobResult;
+        s.jobId = job.id;
+      }
 
       // Upload photos
       const files = s.photos.map(function(p) { return p.file; });
@@ -451,9 +497,11 @@
         barcode: data.barcode || ''
       };
 
+      s._analyzing = false;
       s.step = 2;
       renderNewDelivery();
     } catch (e) {
+      s._analyzing = false;
       toast(e.message, 'error');
       renderStep1();
     }
@@ -491,7 +539,7 @@
     if (s.additionalPhotos.length > 0) {
       addPhotosHtml = '<div class="photo-grid mb-12">' +
         s.additionalPhotos.map(function(p, i) {
-          return '<div class="photo-thumb"><img src="' + p.preview + '" alt=""><button class="photo-delete add-photo-del" data-idx="' + i + '">✕</button></div>';
+          return '<div class="photo-thumb"><img src="' + p.preview + '" alt="" style="transform:rotate(' + (p.rotation||0) + 'deg)"><button class="photo-rotate add-photo-rot" data-idx="' + i + '">↻</button><button class="photo-delete add-photo-del" data-idx="' + i + '">✕</button></div>';
         }).join('') +
       '</div>';
     }
@@ -505,7 +553,7 @@
         '<div class="camera-icon" style="font-size:1.5rem;">📷</div>' +
         '<div class="camera-text text-sm">' + t('new.addUnloadPhoto') + '</div>' +
       '</div>' +
-      '<input type="file" accept="image/*" capture="environment" class="camera-input" id="add-photo-input" multiple>' +
+      '<input type="file" accept="image/*" class="camera-input" id="add-photo-input" multiple>' +
       '<div class="flex-row mt-16" style="gap:10px;">' +
         '<button class="btn btn-secondary" id="step2-back" style="flex:1;">' + t('new.back') + '</button>' +
         '<button class="btn btn-primary" id="step2-next" style="flex:2;">' + t('new.next') + '</button>' +
@@ -533,7 +581,7 @@
         const file = files[i];
         const reader = new FileReader();
         reader.onload = function(ev) {
-          s.additionalPhotos.push({ file: file, preview: ev.target.result });
+          s.additionalPhotos.push({ file: file, preview: ev.target.result, rotation: 0 });
           renderStep2();
         };
         reader.readAsDataURL(file);
@@ -545,6 +593,14 @@
         e.stopPropagation();
         haptic(20);
         s.additionalPhotos.splice(parseInt(this.getAttribute('data-idx')), 1);
+        renderStep2();
+      });
+    });
+    document.querySelectorAll('.add-photo-rot').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); haptic();
+        const idx = parseInt(this.getAttribute('data-idx'));
+        s.additionalPhotos[idx].rotation = ((s.additionalPhotos[idx].rotation || 0) + 90) % 360;
         renderStep2();
       });
     });
@@ -869,7 +925,8 @@
         '<div class="flex-row mt-16" style="gap:10px;">' +
           '<button class="btn btn-secondary" id="edit-job-btn" style="flex:1;">✏️ ' + t('job.edit') + '</button>' +
           '<button class="btn btn-primary" id="resend-email-btn" style="flex:1;">📧 ' + t('job.resendEmail') + '</button>' +
-        '</div>';
+        '</div>' +
+        '<div class="mt-16" style="text-align:center;" id="delete-job-container"></div>';
 
       document.getElementById('resend-email-btn').addEventListener('click', async function() {
         haptic();
@@ -909,13 +966,266 @@
         navigate('#/new-delivery');
       });
 
+      // Check if trucker delete is allowed and show button if yes
+      (async () => {
+        try {
+          const val = await api.getSetting('allow_trucker_delete');
+          if (val === 'true') {
+            var delContainer = document.getElementById('delete-job-container');
+            if (delContainer) {
+              delContainer.innerHTML = 
+                '<button class="btn" id="delete-job-btn" style="background:#dc2626;color:#fff;width:100%;">' + t('job.deleteJob') + '</button>';
+              var delBtn = document.getElementById('delete-job-btn');
+              if (delBtn) {
+                delBtn.addEventListener('click', async function() {
+                  haptic();
+                  if (!confirm(t('job.confirmDelete'))) return;
+                  this.disabled = true;
+                  try {
+                    await api.deleteJob(jobId, 'trucker');
+                    toast(t('job.deleted'), 'success');
+                    navigate('#/history');
+                  } catch (de) {
+                    toast(de.message, 'error');
+                    this.disabled = false;
+                  }
+                });
+              }
+            }
+          }
+        } catch (ignore) { /* setting check failed, hide delete */ }
+      })();
+
     } catch (e) {
       const el = document.getElementById('job-detail');
       if (el) el.innerHTML = '<div class="empty-state"><div class="empty-text">' + t('common.error') + ': ' + escHtml(e.message) + '</div></div>';
     }
   }
 
-  // ===== DAMAGE REPORT VIEW =====
+  // ===== CONTAINER REPORT =====
+  var _contState = { photos: [], _comment: '', submitting: false };
+
+  function renderContainerReport() {
+    _contState = { photos: [], _comment: '', _tur_nr: '', _container_nr: '', _rating: 0, _item_type: '', submitting: false };
+    _drawContainerReport();
+  }
+
+  function _drawContainerReport() {
+    var s = _contState;
+    var photosHtml = '';
+    if (s.photos.length > 0) {
+      photosHtml = '<div class="photo-grid" style="margin-bottom:12px;">' +
+        s.photos.map(function(p, i) {
+          return '<div class="photo-thumb"><img src="' + p.preview + '" alt="" style="transform:rotate(' + (p.rotation||0) + 'deg)"><button class="photo-rotate cont-photo-rot" data-idx="' + i + '">\u21bb</button><button class="photo-delete cont-photo-del" data-idx="' + i + '">&times;</button></div>';
+        }).join('') +
+        '</div>';
+    }
+
+    var ratingLabels = [
+      { val: 1, emoji: '\ud83d\ude1e', label: t('cont.ratingBad') },
+      { val: 2, emoji: '\ud83d\ude15', label: t('cont.ratingPoor') },
+      { val: 3, emoji: '\ud83d\ude10', label: t('cont.ratingOk') },
+      { val: 4, emoji: '\ud83d\ude42', label: t('cont.ratingGood') },
+      { val: 5, emoji: '\ud83d\ude0a', label: t('cont.ratingGreat') }
+    ];
+
+    var ratingHtml = '<div style="display:flex;gap:6px;flex-wrap:nowrap;margin-top:8px;">' +
+      ratingLabels.map(function(r) {
+        var selected = s._rating === r.val;
+        var bg = selected ? '#1a1a2e' : '#f0f0f0';
+        var color = selected ? '#fff' : '#333';
+        var border = selected ? '2px solid #1a1a2e' : '2px solid transparent';
+        return '<div class="cont-rating-btn" data-val="' + r.val + '" style="cursor:pointer;flex:1;padding:8px 4px;border-radius:10px;background:' + bg + ';color:' + color + ';border:' + border + ';text-align:center;transition:all 0.15s;">' +
+          '<div style="font-size:1.5rem;">' + r.emoji + '</div>' +
+          '<div style="font-size:0.7rem;margin-top:2px;font-weight:600;">' + r.label + '</div>' +
+          '</div>';
+      }).join('') +
+    '</div>';
+
+    var html = renderHeader(t('cont.title'), true) +
+      '<div class="card" style="margin-bottom:16px;">' +
+        '<label class="form-label" style="margin-bottom:8px;">\ud83d\udcf7 ' + t('cont.addPhoto') + ' (' + s.photos.length + ')</label>' +
+        '<div class="camera-zone" id="cont-photo-trigger" style="padding:20px;">' +
+          '<div class="camera-icon">\ud83d\udcf7</div>' +
+          '<div class="camera-text">' + t('cont.addPhoto') + '</div>' +
+        '</div>' +
+        '<input type="file" accept="image/*" class="camera-input" id="cont-photo-input" multiple>' +
+        photosHtml +
+      '</div>' +
+      '<div class="card" style="margin-bottom:16px;">' +
+        '<div style="display:flex;gap:12px;margin-bottom:12px;">' +
+          '<div style="flex:1;">' +
+            '<label class="form-label" style="margin-bottom:4px;">\ud83d\udce6 ' + t('cont.turNr') + '</label>' +
+            '<input type="text" class="form-input" id="cont-tur-nr" value="' + (s._tur_nr || '') + '" placeholder="123...">' +
+          '</div>' +
+          '<div style="flex:1;">' +
+            '<label class="form-label" style="margin-bottom:4px;">\ud83d\udee5 ' + t('cont.containerNr') + '</label>' +
+            '<input type="text" class="form-input" id="cont-container-nr" value="' + (s._container_nr || '') + '" placeholder="ABCU1234567...">' +
+          '</div>' +
+        '</div>' +
+        '<label class="form-label">' + t('cont.itemTypeLabel') + '</label>' +
+        '<select class="form-input" id="cont-item-type" style="margin-bottom:12px;">' +
+        '<option value="">' + t('cont.itemTypePlaceholder') + '</option>' +
+        '<option value="' + t('cont.itemTypeHojskabe') + '">' + t('cont.itemTypeHojskabe') + '</option>' +
+        '<option value="' + t('cont.itemTypeVaegskabe') + '">' + t('cont.itemTypeVaegskabe') + '</option>' +
+        '<option value="' + t('cont.itemTypeUnderskabe') + '">' + t('cont.itemTypeUnderskabe') + '</option>' +
+        '<option value="' + t('cont.itemTypeHjorneskabe') + '">' + t('cont.itemTypeHjorneskabe') + '</option>' +
+        '<option value="' + t('cont.itemTypeLosdeleSokler') + '">' + t('cont.itemTypeLosdeleSokler') + '</option>' +
+        '<option value="' + t('cont.itemTypeSmapakker') + '">' + t('cont.itemTypeSmapakker') + '</option>' +
+        '<option value="' + t('cont.itemTypeKorteBordplader') + '">' + t('cont.itemTypeKorteBordplader') + '</option>' +
+        '<option value="' + t('cont.itemTypeLangeBordplader') + '">' + t('cont.itemTypeLangeBordplader') + '</option>' +
+        '<option value="' + t('cont.itemTypeHvidevarer') + '">' + t('cont.itemTypeHvidevarer') + '</option>' +
+        '<option value="' + t('cont.itemTypeBlandet') + '">' + t('cont.itemTypeBlandet') + '</option>' +
+        '</select>' +
+        '<label class="form-label">\ud83d\udcac ' + t('cont.comment') + '</label>' +
+        '<textarea class="form-textarea" id="cont-comment" rows="3" placeholder="' + t('cont.commentPlaceholder') + '"></textarea>' +
+      '</div>' +
+      '<div class="card" style="margin-bottom:16px;">' +
+        '<label class="form-label">\u2b50 ' + t('cont.rating') + '</label>' +
+        ratingHtml +
+      '</div>' +
+      '<button class="btn btn-primary btn-block" id="cont-submit-btn"' + (s.submitting ? ' disabled' : '') + '>' +
+        (s.submitting ? t('cont.submitting') : t('cont.submit')) +
+      '</button>' +
+      '<button class="btn btn-secondary btn-block" style="margin-top:8px;" onclick="navigate(\'#/dashboard\')">\u2190 ' + t('new.back') + '</button>';
+
+    render(html, true);
+
+    document.getElementById('cont-photo-trigger').addEventListener('click', function() {
+      document.getElementById('cont-photo-input').click();
+    });
+
+    document.getElementById('cont-photo-input').addEventListener('change', function(e) {
+      var files = Array.from(e.target.files);
+      _saveContFields();
+      files.forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          _contState.photos.push({ file: file, preview: ev.target.result, rotation: 0 });
+          _drawContainerReport();
+          _restoreContFields();
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = '';
+    });
+
+    document.querySelectorAll('.cont-photo-del').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        _saveContFields();
+        var idx = parseInt(this.dataset.idx);
+        _contState.photos.splice(idx, 1);
+        _drawContainerReport();
+        _restoreContFields();
+      });
+    });
+
+    document.querySelectorAll('.cont-photo-rot').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); haptic();
+        _saveContFields();
+        var idx = parseInt(this.dataset.idx);
+        _contState.photos[idx].rotation = ((_contState.photos[idx].rotation || 0) + 90) % 360;
+        _drawContainerReport();
+        _restoreContFields();
+      });
+    });
+
+    document.querySelectorAll('.cont-rating-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        _saveContFields();
+        var val = parseInt(this.dataset.val);
+        _contState._rating = (_contState._rating === val) ? 0 : val;
+        _drawContainerReport();
+        _restoreContFields();
+      });
+    });
+
+    var commentEl = document.getElementById('cont-comment');
+    if (commentEl) {
+      commentEl.value = _contState._comment || '';
+      commentEl.addEventListener('input', function() { _contState._comment = this.value; });
+    }
+
+    var submitBtn = document.getElementById('cont-submit-btn');
+    if (submitBtn && !s.submitting) {
+      submitBtn.addEventListener('click', async function() {
+        if (_contState.photos.length === 0) {
+          alert(t('cont.noPhotos'));
+          return;
+        }
+        _saveContFields();
+        _contState.submitting = true;
+        _drawContainerReport();
+        try {
+          var formData = new FormData();
+          var driverData = JSON.parse(localStorage.getItem('teslak_driver') || '{}');
+          formData.append('driver_id', driverData.id || '');
+          formData.append('comment', _contState._comment || '');
+          formData.append('tur_nr', _contState._tur_nr || '');
+          formData.append('container_nr', _contState._container_nr || '');
+          formData.append('item_type', _contState._item_type || '');
+          formData.append('rating', _contState._rating || '');
+          var bakedPhotos = await Promise.all(_contState.photos.map(function(p) {
+            return new Promise(function(resolve) {
+              if (!p.rotation) { resolve(p.file); return; }
+              var img = new Image();
+              img.onload = function() {
+                var canvas = document.createElement('canvas');
+                var rot = ((p.rotation % 360) + 360) % 360;
+                var sw = (rot === 90 || rot === 270) ? img.height : img.width;
+                var sh = (rot === 90 || rot === 270) ? img.width : img.height;
+                canvas.width = sw; canvas.height = sh;
+                var ctx = canvas.getContext('2d');
+                ctx.translate(sw/2, sh/2);
+                ctx.rotate(rot * Math.PI / 180);
+                ctx.drawImage(img, -img.width/2, -img.height/2);
+                canvas.toBlob(function(blob) { resolve(new File([blob], p.file.name, {type:'image/jpeg'})); }, 'image/jpeg', 0.92);
+              };
+              img.src = p.preview;
+            });
+          }));
+          bakedPhotos.forEach(function(f) { formData.append('photos', f); });
+          var resp = await fetch('/api/container', { method: 'POST', body: formData });
+          var data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || 'Failed');
+          alert(t('cont.success') + ' \u2705 ' + t('cont.emailSent'));
+          navigate('#/dashboard');
+        } catch (err) {
+          _contState.submitting = false;
+          _drawContainerReport();
+          _restoreContFields();
+          alert(t('common.error') + ': ' + err.message);
+        }
+      });
+    }
+  }
+
+  function _saveContFields() {
+    var t1 = document.getElementById('cont-tur-nr');
+    var c1 = document.getElementById('cont-container-nr');
+    var cm = document.getElementById('cont-comment');
+    if (t1) _contState._tur_nr = t1.value;
+    if (c1) _contState._container_nr = c1.value;
+    const it = document.getElementById('cont-item-type');
+    if (it) _contState._item_type = it.value;
+    if (cm) _contState._comment = cm.value;
+  }
+
+  function _restoreContFields() {
+    var t1 = document.getElementById('cont-tur-nr');
+    var c1 = document.getElementById('cont-container-nr');
+    var cm = document.getElementById('cont-comment');
+    if (t1) t1.value = _contState._tur_nr || '';
+    if (c1) c1.value = _contState._container_nr || '';
+    const itr = document.getElementById('cont-item-type');
+    if (itr) itr.value = _contState._item_type || '';
+    if (cm) cm.value = _contState._comment || '';
+  }
+
+
+
+    // ===== DAMAGE REPORT VIEW =====
   let dmgState = { jobId: null, photos: [], description: '', severity: '' };
 
   function renderDamageReport() {
@@ -937,7 +1247,7 @@
           '<div class="camera-icon" style="font-size:1.5rem;">📸</div>' +
           '<div class="camera-text text-sm">' + t('dmg.takePhoto') + '</div>' +
         '</div>' +
-        '<input type="file" accept="image/*" capture="environment" class="camera-input" id="dmg-camera-input" multiple>' +
+        '<input type="file" accept="image/*" class="camera-input" id="dmg-camera-input" multiple>' +
         '<div class="form-group mt-16">' +
           '<label class="form-label">' + t('dmg.description') + '</label>' +
           '<textarea class="form-textarea" id="dmg-desc" placeholder="' + t('dmg.descPlaceholder') + '"></textarea>' +
@@ -975,7 +1285,7 @@
         const file = files[i];
         const reader = new FileReader();
         reader.onload = function(ev) {
-          dmgState.photos.push({ file: file, preview: ev.target.result });
+          dmgState.photos.push({ file: file, preview: ev.target.result, rotation: 0 });
           renderDmgPhotos();
         };
         reader.readAsDataURL(file);
@@ -1007,7 +1317,7 @@
     if (dmgState.photos.length === 0) { el.innerHTML = ''; return; }
     el.innerHTML = '<div class="photo-grid mb-12">' +
       dmgState.photos.map(function(p, i) {
-        return '<div class="photo-thumb"><img src="' + p.preview + '" alt=""><button class="photo-delete dmg-photo-del" data-idx="' + i + '">✕</button></div>';
+        return '<div class="photo-thumb"><img src="' + p.preview + '" alt="" style="transform:rotate(' + (p.rotation||0) + 'deg)"><button class="photo-rotate dmg-photo-rot" data-idx="' + i + '">↻</button><button class="photo-delete dmg-photo-del" data-idx="' + i + '">✕</button></div>';
       }).join('') +
     '</div>';
     document.querySelectorAll('.dmg-photo-del').forEach(function(btn) {
@@ -1015,6 +1325,14 @@
         e.stopPropagation();
         haptic(20);
         dmgState.photos.splice(parseInt(this.getAttribute('data-idx')), 1);
+        renderDmgPhotos();
+      });
+    });
+    document.querySelectorAll('.dmg-photo-rot').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); haptic();
+        const idx = parseInt(this.getAttribute('data-idx'));
+        dmgState.photos[idx].rotation = ((dmgState.photos[idx].rotation || 0) + 90) % 360;
         renderDmgPhotos();
       });
     });
@@ -1084,9 +1402,17 @@
         await api.uploadPhotos(jobId, files, 'damage');
       }
 
-      // Update status
+      // Update status with driver description first
       const report = dmgState.description + (dmgState.severity ? ' [' + dmgState.severity.toUpperCase() + ']' : '');
       await api.updateJobStatus(jobId, 'damaged', report);
+
+      // Run AI damage analysis on photos
+      if (dmgState.photos.length > 0) {
+        try {
+          btn.textContent = t('dmg.analyzing') || 'Analyzing damage...';
+          await api.analyzeDamage(jobId);
+        } catch (e) { console.error('AI damage analysis failed:', e); }
+      }
 
       // Send email
       try {

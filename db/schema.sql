@@ -44,3 +44,27 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_driver_id ON jobs(driver_id);
 
+CREATE TABLE IF NOT EXISTS container_reports (
+  id SERIAL PRIMARY KEY,
+  driver_id INTEGER REFERENCES drivers(id),
+  truck_name VARCHAR(100),
+  comment TEXT,
+  email_sent BOOLEAN DEFAULT FALSE,
+  tur_nr VARCHAR(100),
+  container_nr VARCHAR(100),
+  rating INTEGER,
+  created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS container_report_photos (
+  id SERIAL PRIMARY KEY,
+  report_id INTEGER REFERENCES container_reports(id) ON DELETE CASCADE,
+  filename VARCHAR(255),
+  created_at TIMESTAMP DEFAULT now()
+);
+
+-- Migrations for existing installs
+ALTER TABLE container_reports ADD COLUMN IF NOT EXISTS tur_nr VARCHAR(100);
+ALTER TABLE container_reports ADD COLUMN IF NOT EXISTS container_nr VARCHAR(100);
+ALTER TABLE container_reports ADD COLUMN IF NOT EXISTS rating INTEGER;
+ALTER TABLE smtp_profiles ADD COLUMN IF NOT EXISTS id SERIAL;

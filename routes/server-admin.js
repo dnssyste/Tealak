@@ -249,6 +249,22 @@ router.delete('/office-admins/:id', requireServerAdmin, async (req, res) => {
 // === DRIVERS ===
 
 // GET /api/server-admin/drivers — List all
+// PUT /settings/:key - update a setting
+router.put('/settings/:key', requireServerAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { key } = req.params;
+    const { value } = req.body;
+    await db.query(
+      'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2',
+      [key, value]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/drivers', requireServerAdmin, async (req, res) => {
   try {
     const db = req.app.locals.db;
@@ -315,6 +331,87 @@ router.delete('/drivers/:id', requireServerAdmin, async (req, res) => {
     console.error('Delete driver error:', err.message);
     res.status(500).json({ error: 'Failed to delete driver' });
   }
+});
+
+
+// ===== SMTP PROFILES =====
+router.get('/smtp-profiles', requireServerAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const result = await db.query('SELECT id, name, host, port, secure, username, from_address, is_default, created_at FROM smtp_profiles ORDER BY is_default DESC, id ASC');
+    res.json({ profiles: result.rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.post('/smtp-profiles', requireServerAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { name, host, port, secure, username, password, from_address, is_default } = req.body;
+    if (!name || !host || !username || !password) return res.status(400).json({ error: 'name, host, username, password required' });
+    if (is_default) await db.query('UPDATE smtp_profiles SET is_default = false');
+    const r = await db.query('INSERT INTO smtp_profiles (name, host, port, secure, username, password, from_address, is_default) VALUES (,,,,,,,) RETURNING id', [name, host, port || 587, !!secure, username, password, from_address || username, !!is_default]);
+    res.json({ success: true, id: r.rows[0].id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.put('/smtp-profiles/:id', requireServerAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { name, host, port, secure, username, password, from_address, is_default } = req.body;
+    if (is_default) await db.query('UPDATE smtp_profiles SET is_default = false');
+    if (password) {
+      await db.query('UPDATE smtp_profiles SET name=$1, host=$2, port=$3, secure=$4, username=$5, password=$6, from_address=$7, is_default=$8 WHERE id=$9', [name, host, port || 587, !!secure, username, password, from_address || username, !!is_default, req.params.id]);
+    } else {
+      await db.query('UPDATE smtp_profiles SET name=$1, host=$2, port=$3, secure=$4, username=$5, from_address=$6, is_default=$7 WHERE id=$8', [name, host, port || 587, !!secure, username, from_address || username, !!is_default, req.params.id]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.delete('/smtp-profiles/:id', requireServerAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    await db.query('DELETE FROM smtp_profiles WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.post('/smtp-profiles/:id/set-default', requireServerAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    await db.query('UPDATE smtp_profiles SET is_default = false');
+    await db.query('UPDATE smtp_profiles SET is_default = true WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.post('/smtp-profiles/:id/test', requireServerAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { to } = req.body;
+    const result = await db.query('SELECT * FROM smtp_profiles WHERE id=$1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Profile not found' });
+    const p = result.rows[0];
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({ host: p.host, port: p.port, secure: p.secure, auth: { user: p.username, pass: p.password } });
+    await transporter.sendMail({ from: p.from_address, to: to || p.username, subject: 'SMTP Test - ' + p.name, text: 'SMTP profile test successful for: ' + p.name });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.get('/smtp-assignments', requireServerAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const keys = ['smtp_delivery_profile', 'smtp_container_profile', 'smtp_damage_profile'];
+    const result = await db.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys]);
+    const out = {};
+    result.rows.forEach(r => { out[r.key] = r.value; });
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.post('/smtp-assignments', requireServerAdmin, async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { smtp_delivery_profile, smtp_container_profile, smtp_damage_profile } = req.body;
+    for (const [k, v] of [['smtp_delivery_profile', smtp_delivery_profile], ['smtp_container_profile', smtp_container_profile], ['smtp_damage_profile', smtp_damage_profile]]) {
+      await db.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [k, v || '']);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = { router, getSmtpConfig };

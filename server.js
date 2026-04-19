@@ -64,8 +64,22 @@ app.use('/api/jobs', jobsRoutes);
 app.use('/api/photos', photosRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/server-admin', serverAdminRoutes.router || serverAdminRoutes);
+const containerRoutes = require('./routes/container');
+app.use('/api/container', containerRoutes);
 
 // Health check
+// Get a specific setting by key
+app.get('/api/settings/:key', async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const result = await db.query('SELECT value FROM settings WHERE key = $1', [req.params.key]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Setting not found' });
+    res.json({ key: req.params.key, value: result.rows[0].value });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

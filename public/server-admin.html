@@ -78,6 +78,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;gap:4px}
 .tag-green{background:var(--green-bg);color:var(--green-text)}
 .tag-gray{background:#374151;color:#9ca3af}
+.tag-orange{background:#7c3a00;color:#fb923c}
 
 /* Forms */
 .form-row{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:14px}
@@ -193,51 +194,101 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         <div class="nav-item" data-tab="drivers">
           <span class="nav-icon">🚛</span> Truck Numbers
         </div>
+        <div class="nav-item" data-tab="settings">
+          <span class="nav-icon">⚙️</span> Settings
+        </div>
       </div>
     </nav>
 
     <!-- MAIN CONTENT -->
     <div class="main-content">
 
-      <!-- SMTP CONFIG -->
+      <!-- SMTP PROFILES -->
       <div class="section active" id="sec-smtp">
         <div class="page-header">
-          <h2>📧 SMTP Configuration</h2>
+          <h2>&#128231; SMTP Profiles</h2>
+          <button class="btn btn-primary btn-sm" onclick="showAddSmtpProfile()">+ Add Profile</button>
+        </div>
+        <div class="card" style="margin-bottom:24px;">
+          <div id="smtpProfileList"><div class="empty-state"><div class="empty-icon">&#128231;</div><p>No SMTP profiles yet.</p></div></div>
         </div>
         <div class="card">
-          <div class="form-group">
-            <label>SMTP Host</label>
-            <input type="text" id="smtpHost" placeholder="e.g. smtp.gmail.com">
-          </div>
+          <h3 style="margin:0 0 16px;font-size:15px;color:var(--text);">&#128236; Email Type Assignments</h3>
+          <p style="color:var(--muted);font-size:13px;margin-bottom:16px;">Choose which profile sends each type of email. Unassigned types use the Default profile.</p>
           <div class="form-row">
             <div class="form-group">
-              <label>Port</label>
-              <input type="number" id="smtpPort" placeholder="587">
+              <label>&#128230; Delivery Emails</label>
+              <select id="assignDelivery"></select>
+            </div>
+            <div class="form-group">
+              <label>&#128667; Container Emails</label>
+              <select id="assignContainer"></select>
+            </div>
+            <div class="form-group">
+              <label>&#9888;&#65039; Damage/Missing Emails</label>
+              <select id="assignDamage"></select>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveTypeAssignments()">&#128190; Save Assignments</button>
+        </div>
+      </div>
+
+      <!-- SMTP PROFILE MODAL -->
+      <div class="modal-overlay" id="smtpProfileModal" style="display:none;">
+        <div class="modal" style="max-width:520px;">
+          <div class="modal-header">
+            <h3 id="smtpProfileModalTitle">Add SMTP Profile</h3>
+            <button class="modal-close" onclick="closeSmtpProfileModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="smtpProfileId">
+            <div class="form-group">
+              <label>Profile Name <span style="color:#ef4444">*</span></label>
+              <input type="text" id="spName" placeholder="e.g. Main Sender, Container Mailer">
+            </div>
+            <div class="form-group">
+              <label>SMTP Host <span style="color:#ef4444">*</span></label>
+              <input type="text" id="spHost" placeholder="e.g. mail.gnb-mail.dk">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Port</label>
+                <input type="number" id="spPort" placeholder="587" value="587">
+              </div>
+              <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" id="spSecure" style="width:16px;height:16px;accent-color:var(--accent);"> Use SSL/TLS (port 465)
+                </label>
+              </div>
             </div>
             <div class="form-group">
               <label>From Address</label>
-              <input type="text" id="smtpFrom" placeholder='"Teslak" <teslak@brbeck.net>'>
+              <input type="text" id="spFrom" placeholder="Teslak &lt;teslak@brbeck.net&gt;">
             </div>
-          </div>
-          <div class="form-group">
-            <label>Username</label>
-            <input type="text" id="smtpUser" placeholder="your@email.com">
-          </div>
-          <div class="form-group">
-            <label>Password</label>
-            <div class="password-wrap">
-              <input type="password" id="smtpPass" placeholder="SMTP password">
-              <button class="toggle-pass" onclick="togglePassword()" title="Show/Hide">👁</button>
+            <div class="form-group">
+              <label>Username</label>
+              <input type="text" id="spUser" placeholder="your@email.com">
             </div>
+            <div class="form-group">
+              <label>Password <span id="spPassNote" style="color:var(--muted);font-size:12px;"></span></label>
+              <div class="password-wrap">
+                <input type="password" id="spPass" placeholder="SMTP password">
+                <button class="toggle-pass" onclick="toggleSpPass()" title="Show/Hide">&#128065;</button>
+              </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;margin-bottom:16px;">
+              <input type="checkbox" id="spDefault" style="width:16px;height:16px;accent-color:var(--accent);"> Set as Default profile
+            </label>
           </div>
-          <div class="btn-row">
-            <button class="btn btn-primary" onclick="saveSmtp()" id="saveSmtpBtn">💾 Save Settings</button>
-            <button class="btn btn-outline" onclick="testSmtp()" id="testSmtpBtn">📤 Send Test Email</button>
+          <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeSmtpProfileModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveSmtpProfile()">&#128190; Save Profile</button>
           </div>
         </div>
       </div>
 
-      <!-- OFFICE ADMINS -->
+
+            <!-- OFFICE ADMINS -->
       <div class="section" id="sec-admins">
         <div class="page-header">
           <h2>👥 Office Admins</h2>
@@ -262,6 +313,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     </div>
   </div>
 
+      <!-- SETTINGS -->
+      <div class="section" id="sec-settings">
+        <h2>⚙️ System Settings</h2>
+        <div class="form-card">
+          <h3>Truck Driver Permissions</h3>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:12px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:15px;">
+              <input type="checkbox" id="allowTruckerDelete" style="accent-color:var(--accent);width:18px;height:18px;cursor:pointer;">
+              Allow truck drivers to delete jobs
+            </label>
+          </div>
+          <p style="color:var(--muted);font-size:13px;margin-top:8px;">When disabled, only admins can delete jobs. Truck drivers will not see the delete button.</p>
+          <button class="btn btn-primary" onclick="saveTruckerDelete()" style="margin-top:16px;">💾 Save</button>
+        </div>
+      </div>
+
   <!-- MOBILE BOTTOM NAV -->
   <nav class="bottom-nav">
     <div class="bottom-nav-inner">
@@ -276,6 +343,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <button class="bnav-item" data-tab="drivers">
         <span class="bnav-icon">🚛</span>
         Trucks
+      </button>
+      <button class="bnav-item" data-tab="settings">
+        <span class="bnav-icon">⚙️</span>
+        Settings
       </button>
     </div>
   </nav>
@@ -420,6 +491,7 @@ function doLogin() {
       document.getElementById('mainContent').style.display = 'block';
       document.getElementById('logoutBtn').style.display = '';
       loadSmtp();
+loadTruckerDelete();
       loadAdmins();
       loadDrivers();
     })
@@ -442,6 +514,26 @@ function logout() {
   document.getElementById('pinInput').focus();
 }
 
+// ===== SETTINGS =====
+function loadTruckerDelete() {
+  fetch('/api/settings/allow_trucker_delete')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('allowTruckerDelete').checked = data.value === 'true';
+    })
+    .catch(() => { document.getElementById('allowTruckerDelete').checked = true; });
+}
+
+function saveTruckerDelete() {
+  const val = document.getElementById('allowTruckerDelete').checked ? 'true' : 'false';
+  sapi('/settings/allow_trucker_delete', {
+    method: 'PUT',
+    body: JSON.stringify({ value: val })
+  })
+    .then(() => toast('Setting saved!'))
+    .catch(e => toast(e.message, true));
+}
+
 // ===== NAVIGATION =====
 function switchTab(tab) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.tab === tab));
@@ -452,48 +544,144 @@ function switchTab(tab) {
 document.querySelectorAll('.nav-item[data-tab]').forEach(n => n.addEventListener('click', () => switchTab(n.dataset.tab)));
 document.querySelectorAll('.bnav-item[data-tab]').forEach(n => n.addEventListener('click', () => switchTab(n.dataset.tab)));
 
-// ===== SMTP =====
-function togglePassword() {
-  const inp = document.getElementById('smtpPass');
+// ===== SMTP PROFILES =====
+let smtpProfiles = [];
+let smtpAssignments = {};
+
+function toggleSpPass() {
+  const inp = document.getElementById('spPass');
   inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 
 function loadSmtp() {
-  sapi('/smtp').then(data => {
-    document.getElementById('smtpHost').value = data.smtp_host || '';
-    document.getElementById('smtpPort').value = data.smtp_port || '587';
-    document.getElementById('smtpUser').value = data.smtp_user || '';
-    document.getElementById('smtpPass').value = data.smtp_pass || '';
-    document.getElementById('smtpFrom').value = data.smtp_from || '';
+  sapi('/smtp-profiles').then(data => {
+    smtpProfiles = data.profiles || [];
+    smtpAssignments = data.assignments || {};
+    renderSmtpProfiles();
+    populateAssignDropdowns();
   }).catch(e => toast(e.message, true));
 }
 
-function saveSmtp() {
-  const btn = document.getElementById('saveSmtpBtn');
-  btn.disabled = true; btn.textContent = 'Saving...';
-  const body = {
-    smtp_host: document.getElementById('smtpHost').value,
-    smtp_port: document.getElementById('smtpPort').value,
-    smtp_user: document.getElementById('smtpUser').value,
-    smtp_pass: document.getElementById('smtpPass').value,
-    smtp_from: document.getElementById('smtpFrom').value,
-  };
-  sapi('/smtp', { method: 'PUT', body: JSON.stringify(body) })
-    .then(() => toast('SMTP settings saved!'))
-    .catch(e => toast(e.message, true))
-    .finally(() => { btn.disabled = false; btn.textContent = '💾 Save Settings'; });
+function renderSmtpProfiles() {
+  const el = document.getElementById('smtpProfileList');
+  if (!smtpProfiles.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128231;</div><p>No SMTP profiles yet. Add one to enable email sending.</p></div>';
+    return;
+  }
+  el.innerHTML = '<div class="item-list">' + smtpProfiles.map(p => `
+    <div class="item">
+      <div class="item-avatar">${p.is_default ? '&#11088;' : '&#128231;'}</div>
+      <div class="item-body">
+        <div class="item-name">${esc(p.name)} ${p.is_default ? '<span style="background:#22c55e;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:6px;">Default</span>' : ''}</div>
+        <div class="item-meta">${esc(p.host)}:${p.port} &bull; ${esc(p.from_address || p.username || '')}</div>
+      </div>
+      <div class="item-actions">
+        ${!p.is_default ? `<button class="btn btn-outline btn-sm" onclick="setDefaultSmtpProfile(${p.id})">&#11088; Default</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="testSmtpProfile(${p.id})">&#128228; Test</button>
+        <button class="btn btn-outline btn-sm" onclick="editSmtpProfile(${p.id})">&#9998; Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSmtpProfile(${p.id}, '${esc(p.name).replace(/'/g,'\\x27')}' )">&#128465; Delete</button>
+      </div>
+    </div>`).join('') + '</div>';
 }
 
-function testSmtp() {
+function populateAssignDropdowns() {
+  const ids = ['assignDelivery', 'assignContainer', 'assignDamage'];
+  const keys = ['smtp_profile_delivery', 'smtp_profile_container', 'smtp_profile_damage'];
+  ids.forEach((id, i) => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">-- Use Default --</option>' +
+      smtpProfiles.map(p => `<option value="${p.id}" ${smtpAssignments[keys[i]] == p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  });
+}
+
+function saveTypeAssignments() {
+  const body = {
+    delivery: document.getElementById('assignDelivery').value,
+    container: document.getElementById('assignContainer').value,
+    damage: document.getElementById('assignDamage').value,
+  };
+  sapi('/smtp-type-assignments', { method: 'PUT', body: JSON.stringify(body) })
+    .then(() => toast('Email type assignments saved!'))
+    .catch(e => toast(e.message, true));
+}
+
+function showAddSmtpProfile() {
+  document.getElementById('smtpProfileId').value = '';
+  document.getElementById('smtpProfileModalTitle').textContent = 'Add SMTP Profile';
+  document.getElementById('spName').value = '';
+  document.getElementById('spHost').value = '';
+  document.getElementById('spPort').value = '587';
+  document.getElementById('spSecure').checked = false;
+  document.getElementById('spFrom').value = '';
+  document.getElementById('spUser').value = '';
+  document.getElementById('spPass').value = '';
+  document.getElementById('spDefault').checked = smtpProfiles.length === 0;
+  document.getElementById('spPassNote').textContent = '';
+  document.getElementById('smtpProfileModal').style.display = 'flex';
+}
+
+function editSmtpProfile(id) {
+  const p = smtpProfiles.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('smtpProfileId').value = id;
+  document.getElementById('smtpProfileModalTitle').textContent = 'Edit SMTP Profile';
+  document.getElementById('spName').value = p.name;
+  document.getElementById('spHost').value = p.host;
+  document.getElementById('spPort').value = p.port;
+  document.getElementById('spSecure').checked = p.secure;
+  document.getElementById('spFrom').value = p.from_address || '';
+  document.getElementById('spUser').value = p.username || '';
+  document.getElementById('spPass').value = '';
+  document.getElementById('spDefault').checked = p.is_default;
+  document.getElementById('spPassNote').textContent = '(leave blank to keep existing)';
+  document.getElementById('smtpProfileModal').style.display = 'flex';
+}
+
+function closeSmtpProfileModal() {
+  document.getElementById('smtpProfileModal').style.display = 'none';
+}
+
+function saveSmtpProfile() {
+  const id = document.getElementById('smtpProfileId').value;
+  const body = {
+    name: document.getElementById('spName').value.trim(),
+    host: document.getElementById('spHost').value.trim(),
+    port: document.getElementById('spPort').value,
+    secure: document.getElementById('spSecure').checked,
+    from_address: document.getElementById('spFrom').value.trim(),
+    username: document.getElementById('spUser').value.trim(),
+    password: document.getElementById('spPass').value,
+    is_default: document.getElementById('spDefault').checked,
+  };
+  if (!body.name || !body.host) { toast('Name and host are required', true); return; }
+  const method = id ? 'PUT' : 'POST';
+  const url = id ? '/smtp-profiles/' + id : '/smtp-profiles';
+  sapi(url, { method, body: JSON.stringify(body) })
+    .then(() => { closeSmtpProfileModal(); toast('Profile saved!'); loadSmtp(); })
+    .catch(e => toast(e.message, true));
+}
+
+function setDefaultSmtpProfile(id) {
+  sapi('/smtp-profiles/' + id + '/set-default', { method: 'POST' })
+    .then(() => { toast('Default profile updated!'); loadSmtp(); })
+    .catch(e => toast(e.message, true));
+}
+
+function testSmtpProfile(id) {
   const email = prompt('Send test email to:');
   if (!email) return;
-  const btn = document.getElementById('testSmtpBtn');
-  btn.disabled = true; btn.textContent = 'Sending...';
-  sapi('/smtp/test', { method: 'POST', body: JSON.stringify({ email }) })
+  sapi('/smtp-profiles/' + id + '/test', { method: 'POST', body: JSON.stringify({ email }) })
     .then(data => toast(data.message || 'Test email sent!'))
-    .catch(e => toast(e.message, true))
-    .finally(() => { btn.disabled = false; btn.textContent = '📤 Send Test Email'; });
+    .catch(e => toast(e.message, true));
 }
+
+function deleteSmtpProfile(id, name) {
+  if (!confirm('Delete SMTP profile "' + name + '"?')) return;
+  sapi('/smtp-profiles/' + id, { method: 'DELETE' })
+    .then(() => { toast('Profile deleted!'); loadSmtp(); })
+    .catch(e => toast(e.message, true));
+}
+
 
 // ===== OFFICE ADMINS =====
 let admins = [];
