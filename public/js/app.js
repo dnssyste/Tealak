@@ -458,12 +458,13 @@ function renderDashboard() {
 
     el.innerHTML =
       '<h2 class="text-center mb-16" style="font-size:1.1rem;">' + t('new.step1') + '</h2>' +
-      '<div class="camera-zone" id="camera-trigger">' +
-        '<div class="camera-icon">📸</div>' +
-        '<div class="camera-text">' + t('new.takePhoto') + '</div>' +
-        '<div class="text-sm text-muted mt-12">' + t('new.takePhotoDesc') + '</div>' +
+      '<div class="text-center mb-8"><div class="camera-icon">📸</div><div class="camera-text">' + t('new.takePhoto') + '</div><div class="text-sm text-muted mt-8">' + t('new.takePhotoDesc') + '</div></div>' +
+      '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
+        '<button type="button" class="btn btn-primary" id="camera-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
+        '<button type="button" class="btn btn-secondary" id="camera-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
       '</div>' +
-      '<input type="file" accept="image/*" class="camera-input" id="camera-input" multiple>' +
+      '<input type="file" accept="image/*" capture="environment" class="camera-input" id="camera-input">' +
+      '<input type="file" accept="image/*" multiple class="camera-input" id="camera-input-files">' +
       photosHtml +
       (s.photos.length > 0 ?
         '<button class="btn btn-secondary mb-12" id="add-more-btn">📷 ' + t('new.addMore') + '</button>' +
@@ -471,10 +472,15 @@ function renderDashboard() {
         : '');
 
     // Bindings
-    document.getElementById('camera-trigger').addEventListener('click', function() {
+    document.getElementById('camera-input-cam-btn').addEventListener('click', function() {
       haptic();
       document.getElementById('camera-input').click();
     });
+    document.getElementById('camera-input-file-btn').addEventListener('click', function() {
+      haptic();
+      document.getElementById('camera-input-files').click();
+    });
+    document.getElementById('camera-input-files').addEventListener('change', handlePhotoCapture);
 
     document.getElementById('camera-input').addEventListener('change', handlePhotoCapture);
 
@@ -482,7 +488,7 @@ function renderDashboard() {
     if (addMoreBtn) {
       addMoreBtn.addEventListener('click', function() {
         haptic();
-        document.getElementById('camera-input').click();
+        document.getElementById('camera-input-files').click();
       });
     }
 
@@ -615,11 +621,13 @@ function renderDashboard() {
       '<div class="card">' + fieldsHtml + '</div>' +
       '<div class="section-title mt-16">' + t('new.additionalPhotos') + '</div>' +
       addPhotosHtml +
-      '<div class="camera-zone" id="add-photo-trigger" style="padding:20px;">' +
-        '<div class="camera-icon" style="font-size:1.5rem;">📷</div>' +
-        '<div class="camera-text text-sm">' + t('new.addUnloadPhoto') + '</div>' +
+      '<div class="text-center" style="padding:8px 0;"><div class="camera-icon" style="font-size:1.5rem;">📷</div><div class="camera-text text-sm">' + t('new.addUnloadPhoto') + '</div></div>' +
+      '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
+        '<button type="button" class="btn btn-primary" id="add-photo-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
+        '<button type="button" class="btn btn-secondary" id="add-photo-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
       '</div>' +
-      '<input type="file" accept="image/*" class="camera-input" id="add-photo-input" multiple>' +
+      '<input type="file" accept="image/*" capture="environment" class="camera-input" id="add-photo-input">' +
+      '<input type="file" accept="image/*" multiple class="camera-input" id="add-photo-input-files">' +
       '<div class="flex-row mt-16" style="gap:10px;">' +
         '<button class="btn btn-secondary" id="step2-back" style="flex:1;">' + t('new.back') + '</button>' +
         '<button class="btn btn-primary" id="step2-next" style="flex:2;">' + t('new.next') + '</button>' +
@@ -636,9 +644,25 @@ function renderDashboard() {
     });
 
     // Additional photos
-    document.getElementById('add-photo-trigger').addEventListener('click', function() {
+    document.getElementById('add-photo-input-cam-btn').addEventListener('click', function() {
       haptic();
       document.getElementById('add-photo-input').click();
+    });
+    document.getElementById('add-photo-input-file-btn').addEventListener('click', function() {
+      haptic();
+      document.getElementById('add-photo-input-files').click();
+    });
+    document.getElementById('add-photo-input-files').addEventListener('change', function(e) {
+      var files = Array.from(e.target.files);
+      files.forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          s.additionalPhotos.push({ file: file, preview: ev.target.result, rotation: 0 });
+          renderStep3();
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = '';
     });
     document.getElementById('add-photo-input').addEventListener('change', function(e) {
       const files = e.target.files;
@@ -1110,11 +1134,13 @@ function renderDashboard() {
     var html = renderHeader(t('cont.title'), true) +
       '<div class="card" style="margin-bottom:16px;">' +
         '<label class="form-label" style="margin-bottom:8px;">\ud83d\udcf7 ' + t('cont.addPhoto') + ' (' + s.photos.length + ')</label>' +
-        '<div class="camera-zone" id="cont-photo-trigger" style="padding:20px;">' +
-          '<div class="camera-icon">\ud83d\udcf7</div>' +
-          '<div class="camera-text">' + t('cont.addPhoto') + '</div>' +
-        '</div>' +
-        '<input type="file" accept="image/*" class="camera-input" id="cont-photo-input" multiple>' +
+        '<div class="text-center" style="padding:8px 0;"><div class="camera-icon">\ud83d\udcf7</div><div class="camera-text">' + t('cont.addPhoto') + '</div></div>' +
+        '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
+        '<button type="button" class="btn btn-primary" id="cont-photo-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
+        '<button type="button" class="btn btn-secondary" id="cont-photo-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+      '</div>' +
+      '<input type="file" accept="image/*" capture="environment" class="camera-input" id="cont-photo-input">' +
+      '<input type="file" accept="image/*" multiple class="camera-input" id="cont-photo-input-files">' +
         photosHtml +
       '</div>' +
       '<div class="card" style="margin-bottom:16px;">' +
@@ -1154,8 +1180,25 @@ function renderDashboard() {
 
     render(html, true);
 
-    document.getElementById('cont-photo-trigger').addEventListener('click', function() {
+    document.getElementById('cont-photo-input-cam-btn').addEventListener('click', function() {
+      haptic();
       document.getElementById('cont-photo-input').click();
+    });
+    document.getElementById('cont-photo-input-file-btn').addEventListener('click', function() {
+      haptic();
+      document.getElementById('cont-photo-input-files').click();
+    });
+    document.getElementById('cont-photo-input-files').addEventListener('change', function(e) {
+      var files = Array.from(e.target.files);
+      files.forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          contPhotos.push({ file: file, preview: ev.target.result, rotation: 0 });
+          renderContainerForm();
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = '';
     });
 
     document.getElementById('cont-photo-input').addEventListener('change', function(e) {
@@ -1320,18 +1363,37 @@ function renderDashboard() {
       '<div class="card">' +
         '<label class="form-label" style="margin-bottom:8px;">\uD83D\uDCCB ' + t('dmg.stickerPhotos') + ' (' + s.stickerPhotos.length + ')</label>' +
         photosHtml +
-        '<div class="camera-zone" id="dmg-sticker-trigger" style="padding:20px;">' +
-          '<div class="camera-icon" style="font-size:1.5rem;">\uD83D\uDCF7</div>' +
-          '<div class="camera-text text-sm">' + t('dmg.takeStickerPhoto') + '</div>' +
-        '</div>' +
-        '<input type="file" accept="image/*" class="camera-input" id="dmg-sticker-input" multiple>' +
+        '<div class="text-center" style="padding:8px 0;"><div class="camera-icon" style="font-size:1.5rem;">\uD83D\uDCF7</div><div class="camera-text text-sm">' + t('dmg.takeStickerPhoto') + '</div></div>' +
+        '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
+        '<button type="button" class="btn btn-primary" id="dmg-sticker-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
+        '<button type="button" class="btn btn-secondary" id="dmg-sticker-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+      '</div>' +
+      '<input type="file" accept="image/*" capture="environment" class="camera-input" id="dmg-sticker-input">' +
+      '<input type="file" accept="image/*" multiple class="camera-input" id="dmg-sticker-input-files">' +
       '</div>' +
       '<button class="btn btn-primary mt-16" id="dmg-analyze-btn" style="width:100%;"' + (s.stickerPhotos.length === 0 ? ' disabled' : '') + '>' + t('dmg.analyzeSticker') + '</button>';
 
     document.getElementById('app').innerHTML = html;
 
-    document.getElementById('dmg-sticker-trigger').addEventListener('click', function() {
-      haptic(); document.getElementById('dmg-sticker-input').click();
+    document.getElementById('dmg-sticker-input-cam-btn').addEventListener('click', function() {
+      haptic();
+      document.getElementById('dmg-sticker-input').click();
+    });
+    document.getElementById('dmg-sticker-input-file-btn').addEventListener('click', function() {
+      haptic();
+      document.getElementById('dmg-sticker-input-files').click();
+    });
+    document.getElementById('dmg-sticker-input-files').addEventListener('change', function(e) {
+      var files = Array.from(e.target.files);
+      files.forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          dmgState.stickerPhotos.push({ file: file, preview: ev.target.result, rotation: 0 });
+          renderDmgStep1();
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = '';
     });
 
     document.getElementById('dmg-sticker-input').addEventListener('change', function(e) {
@@ -1522,11 +1584,13 @@ function renderDashboard() {
       '<div class="card">' +
         '<label class="form-label" style="margin-bottom:8px;">\uD83D\uDCF7 ' + t('dmg.damagePhotos') + ' (' + s.damagePhotos.length + ')</label>' +
         photosHtml +
-        '<div class="camera-zone" id="dmg-damage-trigger" style="padding:20px;">' +
-          '<div class="camera-icon" style="font-size:1.5rem;">\uD83D\uDCF7</div>' +
-          '<div class="camera-text text-sm">' + t('dmg.takeDamagePhoto') + '</div>' +
-        '</div>' +
-        '<input type="file" accept="image/*" class="camera-input" id="dmg-damage-input" multiple>' +
+        '<div class="text-center" style="padding:8px 0;"><div class="camera-icon" style="font-size:1.5rem;">\uD83D\uDCF7</div><div class="camera-text text-sm">' + t('dmg.takeDamagePhoto') + '</div></div>' +
+        '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
+        '<button type="button" class="btn btn-primary" id="dmg-damage-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
+        '<button type="button" class="btn btn-secondary" id="dmg-damage-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+      '</div>' +
+      '<input type="file" accept="image/*" capture="environment" class="camera-input" id="dmg-damage-input">' +
+      '<input type="file" accept="image/*" multiple class="camera-input" id="dmg-damage-input-files">' +
       '</div>' +
       '<div class="card mt-16">' +
         '<label class="form-label">' + t('dmg.description') + '</label>' +
@@ -1543,8 +1607,25 @@ function renderDashboard() {
 
     document.getElementById('app').innerHTML = html;
 
-    document.getElementById('dmg-damage-trigger').addEventListener('click', function() {
-      haptic(); document.getElementById('dmg-damage-input').click();
+    document.getElementById('dmg-damage-input-cam-btn').addEventListener('click', function() {
+      haptic();
+      document.getElementById('dmg-damage-input').click();
+    });
+    document.getElementById('dmg-damage-input-file-btn').addEventListener('click', function() {
+      haptic();
+      document.getElementById('dmg-damage-input-files').click();
+    });
+    document.getElementById('dmg-damage-input-files').addEventListener('change', function(e) {
+      var files = Array.from(e.target.files);
+      files.forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          dmgState.damagePhotos.push({ file: file, preview: ev.target.result, rotation: 0 });
+          renderDmgStep3();
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = '';
     });
     document.getElementById('dmg-damage-input').addEventListener('change', function(e) {
       Array.from(e.target.files).forEach(function(file) {
@@ -1710,11 +1791,13 @@ function renderDashboard() {
     var html = renderHeader(t('dc.title'), true) +
       '<div class="card" style="margin-bottom:16px;">' +
         '<label class="form-label" style="margin-bottom:8px;">📷 ' + t('dc.addPhoto') + ' (' + s.photos.length + ')</label>' +
-        '<div class="camera-zone" id="dc-photo-trigger" style="padding:20px;">' +
-          '<div class="camera-icon">📷</div>' +
-          '<div class="camera-text">' + t('dc.addPhoto') + '</div>' +
-        '</div>' +
-        '<input type="file" accept="image/*" class="camera-input" id="dc-photo-input" multiple>' +
+        '<div class="text-center" style="padding:8px 0;"><div class="camera-icon">📷</div><div class="camera-text">' + t('dc.addPhoto') + '</div></div>' +
+        '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
+        '<button type="button" class="btn btn-primary" id="dc-photo-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
+        '<button type="button" class="btn btn-secondary" id="dc-photo-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+      '</div>' +
+      '<input type="file" accept="image/*" capture="environment" class="camera-input" id="dc-photo-input">' +
+      '<input type="file" accept="image/*" multiple class="camera-input" id="dc-photo-input-files">' +
         photosHtml +
       '</div>' +
       '<div class="card" style="margin-bottom:16px;">' +
@@ -1730,8 +1813,25 @@ function renderDashboard() {
 
     render(html, true);
 
-    document.getElementById('dc-photo-trigger').addEventListener('click', function() {
+    document.getElementById('dc-photo-input-cam-btn').addEventListener('click', function() {
+      haptic();
       document.getElementById('dc-photo-input').click();
+    });
+    document.getElementById('dc-photo-input-file-btn').addEventListener('click', function() {
+      haptic();
+      document.getElementById('dc-photo-input-files').click();
+    });
+    document.getElementById('dc-photo-input-files').addEventListener('change', function(e) {
+      var files = Array.from(e.target.files);
+      files.forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          dcPhotos.push({ file: file, preview: ev.target.result, rotation: 0 });
+          renderDCForm();
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = '';
     });
 
     document.getElementById('dc-photo-input').addEventListener('change', function(e) {
