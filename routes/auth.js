@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || require('crypto').randomBytes(64).toString('hex');
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -21,13 +24,12 @@ router.post('/login', async (req, res) => {
 
     const driver = result.rows[0];
 
-    // Simple base64 token
-    const tokenPayload = {
-      id: driver.id,
-      name: driver.name,
-      ts: Date.now()
-    };
-    const token = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
+    // Signed JWT token (expires in 24h)
+    const token = jwt.sign(
+      { id: driver.id, name: driver.name },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     res.json({
       success: true,
@@ -44,7 +46,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/drivers - list driver names for dropdown
+// GET /api/auth/drivers - list driver names only (no IDs exposed)
 router.get('/drivers', async (req, res) => {
   try {
     const db = req.app.locals.db;
@@ -55,5 +57,8 @@ router.get('/drivers', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Export JWT_SECRET for middleware use
+router.JWT_SECRET = JWT_SECRET;
 
 module.exports = router;

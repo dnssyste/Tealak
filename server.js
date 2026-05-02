@@ -1,6 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const { sanitizeMiddleware } = require('./utils/sanitize');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
@@ -14,11 +17,45 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', true);
 
 // CORS
-app.use(cors());
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false,  // PWA needs inline scripts
+  crossOriginEmbedderPolicy: false
+}));
+
+// CORS - restricted to our domain
+app.use(cors({
+  origin: [
+    'https://app.teslak.net',
+    'http://localhost:3000'  // dev
+  ],
+  credentials: true
+}));
+
+// Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' }
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20, // strict for login
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts, please try again later' }
+});
+app.use('/api/', apiLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/admin/login', authLimiter);
+app.use('/api/server-admin/login', authLimiter);
 
 // Body parsers
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+app.use(sanitizeMiddleware);
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -47,6 +84,23 @@ async function initDB() {
     const schema = fs.readFileSync(path.join(__dirname, 'db', 'schema.sql'), 'utf8');
     await pool.query(schema);
     console.log('Database schema initialized');
+    // Security migration: add gallery tokens
+    await pool.query(`
+      ALTER TABLE jobs ADD COLUMN IF NOT EXISTS gallery_token VARCHAR(64);
+      ALTER TABLE delivery_conditions ADD COLUMN IF NOT EXISTS gallery_token VARCHAR(64);
+      ALTER TABLE container_reports ADD COLUMN IF NOT EXISTS gallery_token VARCHAR(64);
+    `);
+    // Backfill missing tokens
+    const crypto = require('crypto');
+    const tables = ['jobs', 'delivery_conditions', 'container_reports'];
+    for (const tbl of tables) {
+      const missing = await pool.query(`SELECT id FROM ${tbl} WHERE gallery_token IS NULL`);
+      for (const row of missing.rows) {
+        const token = crypto.randomBytes(32).toString('hex');
+        await pool.query(`UPDATE ${tbl} SET gallery_token = $1 WHERE id = $2`, [token, row.id]);
+      }
+    }
+    console.log('Gallery tokens initialized');
   } catch (err) {
     console.error('Failed to initialize database:', err.message);
   }
@@ -105,12 +159,12 @@ app.get('/api/health', (req, res) => {
 
 
 // Gallery page for email links
-app.get('/gallery/:jobId', (req, res) => {
+app.get('/gallery/:jobId/:token', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'gallery.html'));
 });
 
 // DC gallery page
-app.get('/dc-gallery/:reportId', (req, res) => {
+app.get('/dc-gallery/:reportId/:token', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dc-gallery.html'));
 });
 
@@ -118,8 +172,10 @@ app.get('/dc-gallery/:reportId', (req, res) => {
 app.get('/api/dc-reports/:reportId/gallery', async (req, res) => {
   try {
     const { reportId } = req.params;
+    const token = req.query.token;
+    if (!token) return res.status(403).json({ error: 'Access denied' });
     const pool = req.app.locals.db;
-    const report = await pool.query('SELECT * FROM delivery_conditions WHERE id = $1', [reportId]);
+    const report = await pool.query('SELECT * FROM delivery_conditions WHERE id = $1 AND gallery_token = $2', [reportId, token]);
     if (report.rows.length === 0) return res.status(404).json({ error: 'Report not found' });
     const photos = await pool.query('SELECT * FROM delivery_condition_photos WHERE report_id = $1', [reportId]);
     res.json({ report: report.rows[0], photos: photos.rows });
@@ -133,8 +189,10 @@ app.get('/api/dc-reports/:reportId/gallery', async (req, res) => {
 app.get('/api/dc-reports/:reportId/download-all', async (req, res) => {
   try {
     const { reportId } = req.params;
+    const token = req.query.token;
+    if (!token) return res.status(403).json({ error: 'Access denied' });
     const pool = req.app.locals.db;
-    const report = await pool.query('SELECT * FROM delivery_conditions WHERE id = $1', [reportId]);
+    const report = await pool.query('SELECT * FROM delivery_conditions WHERE id = $1 AND gallery_token = $2', [reportId, token]);
     if (report.rows.length === 0) return res.status(404).json({ error: 'Report not found' });
     const photos = await pool.query('SELECT * FROM delivery_condition_photos WHERE report_id = $1', [reportId]);
     if (photos.rows.length === 0) return res.status(404).json({ error: 'No photos found' });
@@ -161,8 +219,10 @@ app.get('/api/dc-reports/:reportId/download-all', async (req, res) => {
 app.get('/api/jobs/:jobId/download-all', async (req, res) => {
   try {
     const { jobId } = req.params;
+    const token = req.query.token;
+    if (!token) return res.status(403).json({ error: 'Access denied' });
     const pool = req.app.locals.db;
-    const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+    const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND gallery_token = $2', [jobId, token]);
     if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
     const photos = await pool.query('SELECT * FROM job_photos WHERE job_id = $1', [jobId]);
     if (photos.rows.length === 0) return res.status(404).json({ error: 'No photos found' });

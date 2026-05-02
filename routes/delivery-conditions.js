@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const sharp = require('sharp');
 const router = express.Router();
 const multer = require('multer');
@@ -16,7 +17,17 @@ const storage = multer.diskStorage({
     cb(null, 'dc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6) + ext);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|webp|heic/;
+    const ext = allowed.test(require('path').extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    if (ext || mime) cb(null, true);
+    else cb(new Error('Only image files allowed'), false);
+  }
+});
 
 async function getSmtpConfig(pool) {
   try {
@@ -41,8 +52,8 @@ router.post('/', upload.array('photos', 30), async (req, res) => {
     const truckName = driver.name || 'Unknown';
 
     const reportRes = await db.query(
-      'INSERT INTO delivery_conditions (driver_id, truck_name, reason, comment) VALUES ($1,$2,$3,$4) RETURNING *',
-      [driver_id, truckName, reason || '', comment || '']
+      'INSERT INTO delivery_conditions (driver_id, truck_name, reason, comment, gallery_token) VALUES ($1,$2,$3,$4, $5) RETURNING *',
+      [driver_id, truckName, reason || '', comment || '', crypto.randomBytes(32).toString('hex')]
     );
     const report = reportRes.rows[0];
 
@@ -69,7 +80,7 @@ router.post('/', upload.array('photos', 30), async (req, res) => {
         const smtp = await getSmtpConfig(db);
         const transporter = nodemailer.createTransport({ host: smtp.host, port: smtp.port, secure: smtp.secure, auth: smtp.auth, tls: { rejectUnauthorized: false } });
         const baseUrl = process.env.BASE_URL || 'https://app.teslak.net';
-        const dcGalleryUrl = `${baseUrl}/dc-gallery/${report.id}`;
+        const dcGalleryUrl = `${baseUrl}/dc-gallery/${report.id}/${report.gallery_token || ''}`;
         const now = new Date(report.created_at);
         const dateStr = now.toLocaleString('da-DK', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Copenhagen' });
 
@@ -81,9 +92,10 @@ router.post('/', upload.array('photos', 30), async (req, res) => {
 
         const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;">
 <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-  <div style="background:#c0392b;padding:24px 32px;">
-    <h1 style="margin:0;color:#fff;font-size:22px;">📋 Leverings Forhold</h1>
-    <p style="margin:4px 0 0;color:#fca5a5;font-size:14px;">Delivery Conditions Report</p>
+  <div style="background:#ffffff;padding:24px 32px;text-align:center;border-bottom:1px solid #eee;">
+    <img src="${baseUrl}/assets/teslak-logo.png" alt="Teslak" style="height:48px;margin-bottom:8px;"/>
+    <h1 style="margin:0;color:#1a1a1a;font-size:22px;">📋 Leverings Forhold</h1>
+    <p style="margin:4px 0 0;color:#666;font-size:14px;">Delivery Conditions Report</p>
   </div>
   <div style="padding:24px 32px;">
     <table style="width:100%;border-collapse:collapse;">

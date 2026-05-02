@@ -17,6 +17,7 @@ router.get('/settings/:key', async (req, res) => {
 });
 
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const { analyzePhotos } = require('../utils/ai');
 const { sendJobEmail } = require('../utils/email');
 
@@ -31,8 +32,8 @@ router.post('/', async (req, res) => {
     const db = req.app.locals.db;
     const id = uuidv4();
     const result = await db.query(
-      `INSERT INTO jobs (id, driver_id, status) VALUES ($1, $2, 'pending') RETURNING *`,
-      [id, driver_id]
+      `INSERT INTO jobs (id, driver_id, status, gallery_token) VALUES ($1, $2, 'pending', $3) RETURNING *`,
+      [id, driver_id, require('crypto').randomBytes(32).toString('hex')]
     );
 
     res.status(201).json(result.rows[0]);

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const sharp = require('sharp');
 const router = express.Router();
 const multer = require('multer');
@@ -16,7 +17,17 @@ const storage = multer.diskStorage({
     cb(null, 'container_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6) + ext);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|webp|heic/;
+    const ext = allowed.test(require('path').extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    if (ext || mime) cb(null, true);
+    else cb(new Error('Only image files allowed'), false);
+  }
+});
 
 // POST /api/container - create container report
 router.post('/', upload.array('photos', 30), async (req, res) => {
@@ -31,8 +42,8 @@ router.post('/', upload.array('photos', 30), async (req, res) => {
 
     // Create report
     const reportRes = await db.query(
-      'INSERT INTO container_reports (driver_id, truck_name, comment, tur_nr, container_nr, rating, item_type) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [driver_id, truckName, comment || '', tur_nr || null, container_nr || null, rating ? parseInt(rating) : null, item_type || null]
+      'INSERT INTO container_reports (driver_id, truck_name, comment, tur_nr, container_nr, rating, item_type, gallery_token) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [driver_id, truckName, comment || '', tur_nr || null, container_nr || null, rating ? parseInt(rating) : null, item_type || null, crypto.randomBytes(32).toString('hex')]
     );
     const report = reportRes.rows[0];
 

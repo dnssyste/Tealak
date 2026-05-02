@@ -98,7 +98,7 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo, pool) {
     ? new Date(job.delivery_date).toLocaleDateString('da-DK', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
     : 'N/A';
 
-  const galleryUrl = `${baseUrl}/gallery/${job.id}`;
+  const galleryUrl = `${baseUrl}/gallery/${job.id}/${job.gallery_token || ""}`;
 
   const photoLinks = photos.map(p =>
     `<a href="${baseUrl}/api/photos/file/${p.filename}" style="display:inline-block;margin:4px;">
