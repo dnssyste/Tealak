@@ -250,8 +250,9 @@ router.delete('/container-reports/:id', requireAdmin, async (req, res) => {
 
 router.post('/photos/email', requireAdmin, async (req, res) => {
   try {
-    const { job_id, email, message } = req.body;
-    if (!job_id || !email) return res.status(400).json({ error: 'job_id and email are required' });
+    const { job_id, email, emails, message } = req.body;
+    const emailList = emails || (email ? [email] : []);
+    if (!job_id || !emailList.length) return res.status(400).json({ error: 'job_id and at least one email are required' });
 
     const db = req.app.locals.db;
 
@@ -345,15 +346,16 @@ router.post('/photos/email', requireAdmin, async (req, res) => {
       auth: smtpConfig.auth,
     });
 
-    await transporter.sendMail({
-      from: smtpConfig.from || '"Teslak Delivery" <noreply@teslak.dk>',
-      to: email,
-      subject: `Teslak Delivery Photos - Order ${job.order_nr || job.id}`,
-      html,
-    });
-
-    console.log(`Photo email sent to ${email} for job ${job_id}`);
-    res.json({ success: true, message: `Photos emailed to ${email}` });
+    for (const toAddr of emailList) {
+      await transporter.sendMail({
+        from: smtpConfig.from || '"Teslak Delivery" <noreply@teslak.dk>',
+        to: toAddr,
+        subject: `Teslak Delivery Photos - Order ${job.order_nr || job.id}`,
+        html,
+      });
+      console.log(`Photo email sent to ${toAddr} for job ${job_id}`);
+    }
+    res.json({ success: true, message: `Photos emailed to ${emailList.length} recipient(s)` });
   } catch (err) {
     console.error('Photo email error:', err.message);
     res.status(500).json({ error: 'Failed to send photo email: ' + err.message });
@@ -477,6 +479,48 @@ router.put('/smtp-type-assignments', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+
+// ── Dropdown Options CRUD ───────────────────────────────────────────────────
+router.get('/dropdown-options', async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const result = await db.query('SELECT * FROM dropdown_options ORDER BY category, sort_order ASC');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/dropdown-options', async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { category, label_da, label_en, sort_order } = req.body;
+    const r = await db.query(
+      'INSERT INTO dropdown_options (category, label_da, label_en, sort_order) VALUES ($1,$2,$3,$4) RETURNING *',
+      [category, label_da, label_en, sort_order || 99]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/dropdown-options/:id', async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { label_da, label_en, sort_order, active } = req.body;
+    const r = await db.query(
+      'UPDATE dropdown_options SET label_da=$1, label_en=$2, sort_order=$3, active=$4 WHERE id=$5 RETURNING *',
+      [label_da, label_en, sort_order, active !== false, req.params.id]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/dropdown-options/:id', async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    await db.query('DELETE FROM dropdown_options WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

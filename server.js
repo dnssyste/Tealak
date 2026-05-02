@@ -66,6 +66,25 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/server-admin', serverAdminRoutes.router || serverAdminRoutes);
 const containerRoutes = require('./routes/container');
 app.use('/api/container', containerRoutes);
+const deliveryConditionsRoutes = require('./routes/delivery-conditions');
+app.use('/api/delivery-conditions', deliveryConditionsRoutes);
+
+// Public dropdown options (no auth needed - used by truck app)
+app.get('/api/dropdown-options/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    const allowed = ['dc_reason', 'item_type'];
+    if (!allowed.includes(category)) return res.status(400).json({ error: 'Invalid category' });
+    const db = req.app.locals.db;
+    const result = await db.query(
+      'SELECT id, label_da, label_en, sort_order FROM dropdown_options WHERE category=$1 AND active=true ORDER BY sort_order ASC',
+      [category]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Health check
 // Get a specific setting by key

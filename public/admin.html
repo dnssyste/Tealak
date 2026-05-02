@@ -243,6 +243,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         </div>
       </div>
       <div class="sidebar-section">
+        <div class="sidebar-label">Configuration</div>
+        <div class="nav-item" data-tab="options">
+          <span class="nav-icon">&#x1F4CB;</span> Dropdown Options
+        </div>
+      </div>
+      <div class="sidebar-section">
         <div class="sidebar-label">System</div>
         <div class="nav-item" data-tab="settings">
           <span class="nav-icon">⚙️</span> Settings
@@ -320,6 +326,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         </div>
       </div>
 
+      <!-- DROPDOWN OPTIONS -->
+      <div class="section" id="sec-options">
+        <div class="page-header"><h2>&#x1F4CB; Dropdown Options</h2></div>
+        <div class="card" style="margin-bottom:20px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <h3 style="margin:0;font-size:16px">&#x1F4CB; Delivery Condition Reasons</h3>
+            <button class="btn btn-primary btn-sm" onclick="showAddOptionModal('dc_reason')">+ Add Reason</button>
+          </div>
+          <div id="optList-dc_reason"></div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <h3 style="margin:0;font-size:16px">&#x1F69B; Container Item Types (Varetype)</h3>
+            <button class="btn btn-primary btn-sm" onclick="showAddOptionModal('item_type')">+ Add Type</button>
+          </div>
+          <div id="optList-item_type"></div>
+        </div>
+      </div>
+
       <!-- SETTINGS -->
       <div class="section" id="sec-settings">
         <div class="page-header">
@@ -355,6 +380,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <button class="bnav-item" data-tab="photos">
         <span class="bnav-icon">📸</span>
         Photos
+      </button>
+      <button class="bnav-item" data-tab="options">
+        <span class="bnav-icon">&#x1F4CB;</span>Options
       </button>
       <button class="bnav-item" data-tab="settings">
         <span class="bnav-icon">⚙️</span>
@@ -479,8 +507,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <input type="hidden" id="emailJobId">
     <div class="photo-email-form">
       <div class="form-group">
-        <label>Recipient Email</label>
-        <input type="email" id="photoEmailTo" placeholder="recipient@example.com">
+        <label style="font-weight:600;margin-bottom:6px;display:block;">Select Recipients</label>
+        <div id="recipientCheckboxList" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--bg);"></div>
+      </div>
+      <div class="form-group">
+        <label>Additional Email (optional)</label>
+        <input type="email" id="photoEmailExtra" placeholder="other@example.com">
       </div>
       <div class="form-group">
         <label>Message (optional)</label>
@@ -550,6 +582,7 @@ function switchTab(tab) {
   // Sections
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('sec-' + tab).classList.add('active');
+  if (tab === 'options') loadAllOptions();
 }
 
 document.querySelectorAll('.nav-item[data-tab]').forEach(n => n.addEventListener('click', () => switchTab(n.dataset.tab)));
@@ -898,16 +931,35 @@ async function deleteJobAdmin(jobId) {
 
 function showPhotoEmail(jobId) {
   document.getElementById('emailJobId').value = jobId;
-  document.getElementById('photoEmailTo').value = '';
+  document.getElementById('photoEmailExtra').value = '';
   document.getElementById('photoEmailMsg').value = '';
+  const list = document.getElementById('recipientCheckboxList');
+  list.innerHTML = '<p style="color:#888;font-size:13px;padding:4px;">Loading recipients...</p>';
+  api('/recipients').then(data => {
+    const active = data.filter(r => r.active);
+    if (!active.length) {
+      list.innerHTML = '<p style="color:#888;font-size:13px;padding:4px;">No active recipients configured</p>';
+    } else {
+      list.innerHTML = active.map(r => `
+        <label style="display:flex;align-items:center;gap:8px;padding:7px 6px;cursor:pointer;border-radius:6px;transition:background 0.15s;" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+          <input type="checkbox" value="${r.email}" ${r.notify_delivered ? 'checked' : ''} style="width:16px;height:16px;accent-color:#c0392b;cursor:pointer;">
+          <span style="font-size:13px;flex:1;">${r.name ? '<strong>' + r.name + '</strong> &lt;' + r.email + '&gt;' : r.email}</span>
+          ${!r.notify_delivered ? '<span style="color:#888;font-size:11px;white-space:nowrap;">no delivery filter</span>' : ''}
+        </label>`).join('');
+    }
+  }).catch(() => {
+    list.innerHTML = '<p style="color:#f55;font-size:13px;padding:4px;">Failed to load recipients</p>';
+  });
   document.getElementById('photoEmailModal').classList.add('show');
 }
 
 function sendPhotoEmail() {
   const jobId = document.getElementById('emailJobId').value;
-  const email = document.getElementById('photoEmailTo').value;
+  const extra = (document.getElementById('photoEmailExtra').value || '').trim();
   const message = document.getElementById('photoEmailMsg').value;
-  if (!email) return toast('Email address is required', true);
+  const checked = [...document.querySelectorAll('#recipientCheckboxList input[type="checkbox"]:checked')].map(c => c.value);
+  if (extra) checked.push(extra);
+  if (!checked.length) return toast('Select at least one recipient', true);
 
   const btn = document.getElementById('sendPhotoEmailBtn');
   btn.disabled = true;
@@ -915,9 +967,9 @@ function sendPhotoEmail() {
 
   api('/photos/email', {
     method: 'POST',
-    body: JSON.stringify({ job_id: jobId, email, message })
+    body: JSON.stringify({ job_id: jobId, emails: checked, message })
   })
-    .then(() => { closeModal('photoEmailModal'); toast('Photos emailed successfully!'); })
+    .then(() => { closeModal('photoEmailModal'); toast('Email sent to ' + checked.length + ' recipient(s)!'); })
     .catch(e => toast(e.message, true))
     .finally(() => { btn.disabled = false; btn.textContent = '📤 Send Email'; });
 }
@@ -1037,6 +1089,87 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
 
 // Focus PIN on load
 document.getElementById('pinInput').focus();
+
+// ── Dropdown Options ──────────────────────────────────────────────────────────
+let _allOptions = [];
+async function loadAllOptions() {
+  try {
+    const data = await api('/dropdown-options');
+    _allOptions = Array.isArray(data) ? data : [];
+    renderOptionList('dc_reason');
+    renderOptionList('item_type');
+  } catch(e) { console.error('loadAllOptions error', e); }
+}
+function renderOptionList(category) {
+  const opts = _allOptions.filter(o => o.category === category).sort((a,b) => a.sort_order - b.sort_order);
+  const el = document.getElementById('optList-' + category);
+  if (!el) return;
+  if (!opts.length) { el.innerHTML = '<p style="color:var(--muted);font-size:13px">No options yet.</p>'; return; }
+  let rows = '';
+  opts.forEach(o => {
+    rows += '<tr style="border-bottom:1px solid var(--border)">' +
+      '<td style="padding:8px;color:var(--muted)">' + o.sort_order + '</td>' +
+      '<td style="padding:8px">' + eH(o.label_da) + '</td>' +
+      '<td style="padding:8px;color:var(--muted)">' + eH(o.label_en) + '</td>' +
+      '<td style="padding:8px">' + (o.active ? '<span style="color:#4caf50">&#x2713;</span>' : '<span style="color:var(--muted)">&#x2717;</span>') + '</td>' +
+      '<td style="padding:8px;text-align:right;white-space:nowrap">' +
+        '<button class="btn btn-sm" style="margin-right:4px" onclick="showEditOptionModal(' + o.id + ')">Edit</button>' +
+        '<button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="deleteOption(' + o.id + ')">Delete</button>' +
+      '</td></tr>';
+  });
+  el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+    '<thead><tr style="border-bottom:1px solid var(--border)">' +
+    '<th style="text-align:left;padding:6px 8px;color:var(--muted)">#</th>' +
+    '<th style="text-align:left;padding:6px 8px;color:var(--muted)">Danish</th>' +
+    '<th style="text-align:left;padding:6px 8px;color:var(--muted)">English</th>' +
+    '<th style="text-align:left;padding:6px 8px;color:var(--muted)">Active</th>' +
+    '<th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+function eH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showAddOptionModal(category) {
+  const label = category === 'dc_reason' ? 'Delivery Condition Reason' : 'Container Item Type';
+  const next = (_allOptions.filter(o => o.category === category).length || 0) + 1;
+  showModal('Add ' + label,
+    '<div style="display:flex;flex-direction:column;gap:12px">' +
+    '<div><label class="form-label">Danish Label</label><input id="opt-da" class="form-input" placeholder="Dansk tekst" /></div>' +
+    '<div><label class="form-label">English Label</label><input id="opt-en" class="form-input" placeholder="English text" /></div>' +
+    '<div><label class="form-label">Sort Order</label><input id="opt-order" class="form-input" type="number" value="' + next + '" /></div>' +
+    '</div>',
+    async function() {
+      const da = document.getElementById('opt-da').value.trim();
+      const en = document.getElementById('opt-en').value.trim();
+      const ord = parseInt(document.getElementById('opt-order').value) || next;
+      if (!da || !en) { toast('Please fill in both labels'); return; }
+      await api('/dropdown-options', { method: 'POST', body: JSON.stringify({ category, label_da: da, label_en: en, sort_order: ord }) });
+      closeModal(); await loadAllOptions(); toast('Option added!');
+    });
+}
+function showEditOptionModal(id) {
+  const opt = _allOptions.find(o => o.id === id);
+  if (!opt) return;
+  showModal('Edit Option',
+    '<div style="display:flex;flex-direction:column;gap:12px">' +
+    '<div><label class="form-label">Danish Label</label><input id="opt-da" class="form-input" value="' + eH(opt.label_da) + '" /></div>' +
+    '<div><label class="form-label">English Label</label><input id="opt-en" class="form-input" value="' + eH(opt.label_en) + '" /></div>' +
+    '<div><label class="form-label">Sort Order</label><input id="opt-order" class="form-input" type="number" value="' + opt.sort_order + '" /></div>' +
+    '<div style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="opt-active"' + (opt.active ? ' checked' : '') + ' /><label for="opt-active">Active (show in app)</label></div>' +
+    '</div>',
+    async function() {
+      const da = document.getElementById('opt-da').value.trim();
+      const en = document.getElementById('opt-en').value.trim();
+      const ord = parseInt(document.getElementById('opt-order').value) || opt.sort_order;
+      const active = document.getElementById('opt-active').checked;
+      if (!da || !en) { toast('Please fill in both labels'); return; }
+      await api('/dropdown-options/' + id, { method: 'PUT', body: JSON.stringify({ label_da: da, label_en: en, sort_order: ord, active }) });
+      closeModal(); await loadAllOptions(); toast('Option updated!');
+    });
+}
+async function deleteOption(id) {
+  if (!confirm('Delete this option?')) return;
+  await api('/dropdown-options/' + id, { method: 'DELETE' });
+  await loadAllOptions(); toast('Deleted!');
+}
+// ── End Dropdown Options ──────────────────────────────────────────────────────
 </script>
 </body>
 </html>

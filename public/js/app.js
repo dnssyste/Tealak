@@ -76,6 +76,7 @@
     else if (route.startsWith('/job/')) renderJobDetail(route.split('/job/')[1]);
     else if (route === '/damage-report') renderDamageReport();
     else if (route === '/container-report') renderContainerReport();
+    else if (route === '/delivery-conditions') renderDeliveryConditions();
     else navigate('#/dashboard');
   }
 
@@ -283,7 +284,26 @@
     });
   }
 
-  function renderDashboard() {
+
+// Dropdown Options Cache
+var _dropdownCache = {};
+async function loadDropdownOptions() {
+  try {
+    var dcRes = await fetch('/api/dropdown-options/dc_reason');
+    var itRes = await fetch('/api/dropdown-options/item_type');
+    _dropdownCache.dc_reason = dcRes.ok ? await dcRes.json() : [];
+    _dropdownCache.item_type = itRes.ok ? await itRes.json() : [];
+  } catch(e) {
+    _dropdownCache.dc_reason = [];
+    _dropdownCache.item_type = [];
+  }
+}
+// End Dropdown Options Cache
+
+// Pre-load dropdown options
+loadDropdownOptions();
+
+function renderDashboard() {
     let html = renderHeader() +
       '<div class="page-content">' +
         '<h1 class="page-title">' + t('dash.title') + '</h1>' +
@@ -297,6 +317,7 @@
           '<button class="action-btn" onclick="window._nav(\'#/deliveries\')"><span class="action-icon">📋</span>' + t('dash.myDeliveries') + '</button>' +
           '<button class="action-btn" onclick="window._nav(\'#/damage-report\')"><span class="action-icon">⚠️</span>' + t('dash.damageReport') + '</button>' +
           '<button class="action-btn" onclick="window._nav(\'#/container-report\')"><span class="action-icon">🚛</span>' + t('dash.containerReport') + '</button>' +
+          '<button class="action-btn" onclick="window._nav(\'#/delivery-conditions\')"><span class="action-icon">📋</span>' + t('dash.deliveryConditions') + '</button>' +
         '</div>' +
         '<div class="section-title">' + t('dash.recentTitle') + '</div>' +
         '<div id="recent-jobs"><div class="loading-overlay"><div class="spinner"></div></div></div>' +
@@ -1457,5 +1478,161 @@
 
   // ===== INIT =====
   router();
+
+  // =================== DELIVERY CONDITIONS ===================
+  var _dcState = { photos: [], _reason: '', _comment: '', submitting: false };
+
+  function renderDeliveryConditions() {
+    _dcState = { photos: [], _reason: '', _comment: '', submitting: false };
+    _drawDC();
+  }
+
+  function _drawDC() {
+    var s = _dcState;
+    var photosHtml = '';
+    if (s.photos.length > 0) {
+      photosHtml = '<div class="photo-grid" style="margin-bottom:12px;">' +
+        s.photos.map(function(p, i) {
+          return '<div class="photo-thumb"><img src="' + p.preview + '" alt="" style="transform:rotate(' + (p.rotation||0) + 'deg)"><button class="photo-rotate dc-photo-rot" data-idx="' + i + '">↻</button><button class="photo-delete dc-photo-del" data-idx="' + i + '">&times;</button></div>';
+        }).join('') +
+        '</div>';
+    }
+
+    var _dcOpts = (_dropdownCache.dc_reason && _dropdownCache.dc_reason.length) ? _dropdownCache.dc_reason : [{label_da:'Ikke hjemme',label_en:'Not home'},{label_da:'Adresse ikke fundet',label_en:'Address not found'},{label_da:'Kunde afviste leveringen',label_en:'Customer refused delivery'},{label_da:'Beskadiget vare - returneret',label_en:'Damaged goods - returned'},{label_da:'Forkert adresse',label_en:'Wrong address'},{label_da:'Adgangsproblemer',label_en:'Access problems'},{label_da:'Kræver underskrift - ingen hjemme',label_en:'Signature required - no one home'},{label_da:'Depot lukket / ikke tilgængeligt',label_en:'Depot closed / not accessible'},{label_da:'Andet',label_en:'Other'}];
+    var _dcLang = (window._lang || 'da');
+    var reasonOptions = '<option value="">' + t('dc.reasonPlaceholder') + '</option>' +
+      _dcOpts.map(function(o) {
+        var val = _dcLang === 'en' ? o.label_en : o.label_da;
+        return '<option value="' + val + '"' + (s._reason === val ? ' selected' : '') + '>' + val + '</option>';
+      }).join('');
+
+    var html = renderHeader(t('dc.title'), true) +
+      '<div class="card" style="margin-bottom:16px;">' +
+        '<label class="form-label" style="margin-bottom:8px;">📷 ' + t('dc.addPhoto') + ' (' + s.photos.length + ')</label>' +
+        '<div class="camera-zone" id="dc-photo-trigger" style="padding:20px;">' +
+          '<div class="camera-icon">📷</div>' +
+          '<div class="camera-text">' + t('dc.addPhoto') + '</div>' +
+        '</div>' +
+        '<input type="file" accept="image/*" class="camera-input" id="dc-photo-input" multiple>' +
+        photosHtml +
+      '</div>' +
+      '<div class="card" style="margin-bottom:16px;">' +
+        '<label class="form-label">' + t('dc.reasonLabel') + '</label>' +
+        '<select class="form-input" id="dc-reason" style="margin-bottom:12px;">' + reasonOptions + '</select>' +
+        '<label class="form-label">' + t('dc.comment') + '</label>' +
+        '<textarea class="form-textarea" id="dc-comment" rows="3" placeholder="' + t('dc.commentPlaceholder') + '">' + escHtml(s._comment) + '</textarea>' +
+      '</div>' +
+      '<button class="btn btn-primary btn-block" id="dc-submit-btn"' + (s.submitting ? ' disabled' : '') + '>' +
+        (s.submitting ? t('dc.submitting') : t('dc.submit')) +
+      '</button>' +
+      '<button class="btn btn-secondary btn-block" style="margin-top:8px;" onclick="navigate(\'#/dashboard\')">\u2190 ' + t('new.back') + '</button>';
+
+    render(html, true);
+
+    document.getElementById('dc-photo-trigger').addEventListener('click', function() {
+      document.getElementById('dc-photo-input').click();
+    });
+
+    document.getElementById('dc-photo-input').addEventListener('change', function(e) {
+      var files = Array.from(e.target.files);
+      _saveDCFields();
+      files.forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          _dcState.photos.push({ file: file, preview: ev.target.result, rotation: 0 });
+          _drawDC();
+          _restoreDCFields();
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = '';
+    });
+
+    document.querySelectorAll('.dc-photo-del').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        _saveDCFields();
+        _dcState.photos.splice(parseInt(this.dataset.idx), 1);
+        _drawDC();
+        _restoreDCFields();
+      });
+    });
+
+    document.querySelectorAll('.dc-photo-rot').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); haptic();
+        _saveDCFields();
+        var idx = parseInt(this.dataset.idx);
+        _dcState.photos[idx].rotation = ((_dcState.photos[idx].rotation || 0) + 90) % 360;
+        _drawDC();
+        _restoreDCFields();
+      });
+    });
+
+    var commentEl = document.getElementById('dc-comment');
+    if (commentEl) {
+      commentEl.value = _dcState._comment || '';
+      commentEl.addEventListener('input', function() { _dcState._comment = this.value; });
+    }
+
+    var submitBtn = document.getElementById('dc-submit-btn');
+    if (submitBtn && !s.submitting) {
+      submitBtn.addEventListener('click', async function() {
+        _saveDCFields();
+        if (!_dcState._reason) { alert(t('dc.noReason')); return; }
+        _dcState.submitting = true;
+        _drawDC();
+        try {
+          var formData = new FormData();
+          var driverData = JSON.parse(localStorage.getItem('teslak_driver') || '{}');
+          formData.append('driver_id', driverData.id || '');
+          formData.append('reason', _dcState._reason || '');
+          formData.append('comment', _dcState._comment || '');
+          var bakedPhotos = await Promise.all(_dcState.photos.map(function(p) {
+            return new Promise(function(resolve) {
+              if (!p.rotation) { resolve(p.file); return; }
+              var img = new Image();
+              img.onload = function() {
+                var canvas = document.createElement('canvas');
+                var rot = ((p.rotation % 360) + 360) % 360;
+                var sw = (rot === 90 || rot === 270) ? img.height : img.width;
+                var sh = (rot === 90 || rot === 270) ? img.width : img.height;
+                canvas.width = sw; canvas.height = sh;
+                var ctx = canvas.getContext('2d');
+                ctx.translate(sw/2, sh/2);
+                ctx.rotate(rot * Math.PI / 180);
+                ctx.drawImage(img, -img.width/2, -img.height/2);
+                canvas.toBlob(function(blob) { resolve(new File([blob], p.file.name, {type:'image/jpeg'})); }, 'image/jpeg', 0.92);
+              };
+              img.src = p.preview;
+            });
+          }));
+          bakedPhotos.forEach(function(f) { formData.append('photos', f); });
+          var resp = await fetch('/api/delivery-conditions', { method: 'POST', body: formData });
+          var data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || 'Failed');
+          alert(t('dc.success') + '  \u2705');
+          navigate('#/dashboard');
+        } catch (err) {
+          _dcState.submitting = false;
+          _drawDC();
+          alert('Error: ' + err.message);
+        }
+      });
+    }
+  }
+
+  function _saveDCFields() {
+    var r = document.getElementById('dc-reason');
+    var c = document.getElementById('dc-comment');
+    if (r) _dcState._reason = r.value;
+    if (c) _dcState._comment = c.value;
+  }
+
+  function _restoreDCFields() {
+    var r = document.getElementById('dc-reason');
+    var c = document.getElementById('dc-comment');
+    if (r) r.value = _dcState._reason || '';
+    if (c) c.value = _dcState._comment || '';
+  }
 
 })();

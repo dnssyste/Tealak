@@ -77,7 +77,7 @@ function getStatusBadge(status) {
     completed: { bg: '#22c55e', text: '#fff', label: 'Completed ✓' },
     damaged: { bg: '#f97316', text: '#fff', label: 'Damaged ⚠' },
     missing: { bg: '#ef4444', text: '#fff', label: 'Missing Items ✗' },
-    pending: { bg: '#6b7280', text: '#fff', label: 'Pending' },
+    pending: { bg: '#3b82f6', text: '#fff', label: 'New Delivery 📦' },
   };
   const s = colors[status] || colors.pending;
   return `<span style="display:inline-block;padding:6px 16px;border-radius:20px;background:${s.bg};color:${s.text};font-weight:bold;font-size:14px;">${s.label}</span>`;
@@ -94,6 +94,9 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo, pool) {
 
   const baseUrl = process.env.BASE_URL || 'https://app.teslak.net';
   const truckName = job.driver_name || ('Truck ' + job.driver_id) || 'N/A';
+  const deliveryDate = job.delivery_date
+    ? new Date(job.delivery_date).toLocaleDateString('da-DK', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+    : 'N/A';
 
   const galleryUrl = `${baseUrl}/gallery/${job.id}`;
 
@@ -127,9 +130,9 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo, pool) {
   <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;margin-top:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
     
     <!-- Header -->
-    <div style="background:#1a1a2e;padding:24px 32px;text-align:center;">
-      <h1 style="margin:0;color:#fff;font-size:24px;letter-spacing:1px;">🚛 TESLAK</h1>
-      <p style="margin:4px 0 0;color:#94a3b8;font-size:13px;">Delivery Report</p>
+    <div style="background:#ffffff;padding:20px 32px 16px;text-align:center;border-bottom:3px solid #e5172f;">
+      <img src="${baseUrl}/assets/teslak-logo.png" alt="Teslak Transport" style="height:60px;max-width:220px;object-fit:contain;" />
+      <p style="margin:4px 0 0;color:#6b7280;font-size:13px;letter-spacing:0.5px;">Delivery Report</p>
     </div>
 
     <!-- Status -->
@@ -147,6 +150,10 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo, pool) {
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 8px;color:#6b7280;">Truck</td>
           <td style="padding:10px 8px;">${truckName}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:10px 8px;color:#6b7280;">Phone</td>
+          <td style="padding:10px 8px;">${job.driver_phone || 'N/A'}</td>
         </tr>
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 8px;color:#6b7280;">Tur Nr</td>
@@ -167,7 +174,7 @@ async function sendJobEmail(job, photos, recipientEmail, replyTo, pool) {
 
         <tr style="border-bottom:1px solid #e5e7eb;">
           <td style="padding:10px 8px;color:#6b7280;">Delivery Date</td>
-          <td style="padding:10px 8px;">${job.delivery_date || 'N/A'}</td>
+          <td style="padding:10px 8px;">${deliveryDate}</td>
         </tr>
         ${damageSection}
         ${missingSection}
@@ -245,9 +252,9 @@ async function sendContainerReportEmail(db, report, photoFilenames) {
   const html = `
     <!DOCTYPE html><html><body style="font-family:sans-serif;background:#f5f5f5;margin:0;padding:20px;">
     <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-      <div style="background:#c0392b;padding:24px 32px;">
-        <h1 style="color:#fff;margin:0;font-size:1.4rem;">🚛 Containerinspektion</h1>
-        <p style="color:#ffcccc;margin:4px 0 0;">Teslak Transport</p>
+      <div style="background:#ffffff;padding:20px 32px 16px;text-align:center;border-bottom:3px solid #e5172f;">
+        <img src="${baseUrl}/assets/teslak-logo.png" alt="Teslak Transport" style="height:60px;max-width:220px;object-fit:contain;" />
+        <p style="margin:8px 0 0;color:#6b7280;font-size:13px;letter-spacing:0.5px;">Container Loading Report</p>
       </div>
       <div style="padding:24px 32px;">
         <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">

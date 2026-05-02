@@ -48,7 +48,7 @@ router.get('/', async (req, res) => {
     const db = req.app.locals.db;
     const { status, driver_id, date_from, date_to } = req.query;
     let query = `
-      SELECT j.*, j.tur_nr AS tour_nr, j.customer_name AS customer, d.name as driver_name,
+      SELECT j.*, j.tur_nr AS tour_nr, j.customer_name AS customer, d.name as driver_name, d.email as driver_email, d.phone as driver_phone,
         (SELECT COUNT(*) FROM job_photos WHERE job_id = j.id) as photo_count
       FROM jobs j
       LEFT JOIN drivers d ON j.driver_id = d.id
@@ -89,7 +89,7 @@ router.get('/:id', async (req, res) => {
   try {
     const db = req.app.locals.db;
     const jobResult = await db.query(
-      `SELECT j.*, j.tur_nr AS tour_nr, j.customer_name AS customer, d.name as driver_name
+      `SELECT j.*, j.tur_nr AS tour_nr, j.customer_name AS customer, d.name as driver_name, d.email as driver_email, d.phone as driver_phone
        FROM jobs j
        LEFT JOIN drivers d ON j.driver_id = d.id
        WHERE j.id = $1`,
@@ -202,6 +202,11 @@ router.patch('/:id/status', async (req, res) => {
     }
 
     const job = result.rows[0];
+    // Fetch driver email for reply-to
+    try {
+      const driverEmailRes = await db.query('SELECT email FROM drivers WHERE id = $1', [job.driver_id]);
+      job.driver_email = driverEmailRes.rows[0]?.email || null;
+    } catch(e) { job.driver_email = null; }
 
     // Auto-send email if configured - use DB recipients
     try {
@@ -216,7 +221,7 @@ router.patch('/:id/status', async (req, res) => {
           const photos = await db.query('SELECT * FROM job_photos WHERE job_id = $1', [job.id]);
           const sentTo = [];
           for (const r of recipients.rows) {
-            await sendJobEmail(job, photos.rows, r.email, r.reply_to, db);
+            await sendJobEmail(job, photos.rows, r.email, (job.driver_email || r.reply_to || null), db);
             sentTo.push(r.email);
           }
           const emailList = sentTo.join(', ');
@@ -362,7 +367,7 @@ router.post('/:id/email', async (req, res) => {
     const db = req.app.locals.db;
 
     const jobResult = await db.query(
-      `SELECT j.*, d.name as driver_name FROM jobs j
+      `SELECT j.*, d.name as driver_name, d.email as driver_email, d.phone as driver_phone FROM jobs j
        LEFT JOIN drivers d ON j.driver_id = d.id
        WHERE j.id = $1`,
       [req.params.id]
@@ -402,7 +407,7 @@ router.post('/:id/email', async (req, res) => {
 
     const sentTo = [];
     for (const r of recipients.rows) {
-      await sendJobEmail(job, photosResult.rows, r.email, r.reply_to, db);
+      await sendJobEmail(job, photosResult.rows, r.email, (job.driver_email || r.reply_to || null), db);
       sentTo.push(r.email);
     }
     const emailList = sentTo.join(', ');
