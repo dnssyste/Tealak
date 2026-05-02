@@ -1,4 +1,5 @@
 const express = require('express');
+const sharp = require('sharp');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
@@ -35,14 +36,21 @@ router.post('/', upload.array('photos', 30), async (req, res) => {
     );
     const report = reportRes.rows[0];
 
-    // Save photos
+    // Save photos (with EXIF auto-rotation)
     const photoFilenames = [];
     for (const file of files) {
-      await db.query(
-        'INSERT INTO container_report_photos (report_id, filename) VALUES ($1, $2)',
-        [report.id, file.filename]
-      );
-      photoFilenames.push(file.filename);
+      try {
+        const rotatedName = 'rot_' + file.filename.replace(/\.[^.]+$/, '.jpg');
+        const rotatedPath = path.join('/data/photos', rotatedName);
+        await sharp(file.path).rotate().resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(rotatedPath);
+        fs.unlinkSync(file.path);
+        await db.query('INSERT INTO container_report_photos (report_id, filename) VALUES ($1, $2)', [report.id, rotatedName]);
+        photoFilenames.push(rotatedName);
+      } catch (sharpErr) {
+        console.error('Sharp rotation failed:', sharpErr.message);
+        await db.query('INSERT INTO container_report_photos (report_id, filename) VALUES ($1, $2)', [report.id, file.filename]);
+        photoFilenames.push(file.filename);
+      }
     }
 
     // Send email

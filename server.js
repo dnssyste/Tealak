@@ -109,6 +109,54 @@ app.get('/gallery/:jobId', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'gallery.html'));
 });
 
+// DC gallery page
+app.get('/dc-gallery/:reportId', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dc-gallery.html'));
+});
+
+// DC report gallery API
+app.get('/api/dc-reports/:reportId/gallery', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const pool = req.app.locals.db;
+    const report = await pool.query('SELECT * FROM delivery_conditions WHERE id = $1', [reportId]);
+    if (report.rows.length === 0) return res.status(404).json({ error: 'Report not found' });
+    const photos = await pool.query('SELECT * FROM delivery_condition_photos WHERE report_id = $1', [reportId]);
+    res.json({ report: report.rows[0], photos: photos.rows });
+  } catch (err) {
+    console.error('DC gallery error:', err);
+    res.status(500).json({ error: 'Failed to load report' });
+  }
+});
+
+// DC ZIP download
+app.get('/api/dc-reports/:reportId/download-all', async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const pool = req.app.locals.db;
+    const report = await pool.query('SELECT * FROM delivery_conditions WHERE id = $1', [reportId]);
+    if (report.rows.length === 0) return res.status(404).json({ error: 'Report not found' });
+    const photos = await pool.query('SELECT * FROM delivery_condition_photos WHERE report_id = $1', [reportId]);
+    if (photos.rows.length === 0) return res.status(404).json({ error: 'No photos found' });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="teslak-dc-' + reportId + '-photos.zip"');
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.pipe(res);
+    photos.rows.forEach(p => {
+      const filePath = require('path').join('/data/photos', p.filename);
+      if (fs.existsSync(filePath)) {
+        archive.file(filePath, { name: p.filename });
+      }
+    });
+    await archive.finalize();
+  } catch (err) {
+    console.error('DC ZIP error:', err);
+    res.status(500).json({ error: 'Failed to create ZIP' });
+  }
+});
+
+
 // ZIP download of all photos for a job
 app.get('/api/jobs/:jobId/download-all', async (req, res) => {
   try {

@@ -30,6 +30,33 @@ Provide a comprehensive damage report including:
 Return as JSON: {"damage_type": "...", "severity": "...", "description": "...", "affected_items": "...", "possible_cause": "...", "recommended_action": "..."}
 Be thorough - this report may be used for insurance claims and dispute resolution.`;
 
+
+const STICKER_FULL_PROMPT = `You are an expert OCR reader for Nordic logistics delivery labels (INVITA, HTH, Nobia, etc).
+Extract ALL information visible on the sticker/label. Read every piece of text, number, code, and identifier thoroughly.
+
+Return as JSON with these fields (use null for fields not found):
+{
+  "order_nr": "Order number (e.g. 'IA 11084669', 'DK 43219235'). Usually starts with 2 letters.",
+  "tur_nr": "Tour/route number (e.g. '2226', 'I185'). Labeled Tur nr or Tur.",
+  "customer_name": "Recipient/customer name at top of address block",
+  "address": "Full delivery address including street, postal code and city",
+  "delivery_date": "Delivery date in YYYY-MM-DD format. Convert from any format (YY-MM-DD means 20YY-MM-DD, DD.MM.YYYY, etc). 2-digit year = 20XX. null if not found.",
+  "product": "Product description, type, model, or article name",
+  "antal": "Quantity/number of items/pieces/colli",
+  "pos_nr": "Position number or line number",
+  "production": "Production number, batch, or manufacturing code",
+  "barcode": "Any barcode or EAN numbers visible (transcribe the digits)",
+  "weight": "Weight with unit if shown (e.g. '12.5 kg')",
+  "dimensions": "Package dimensions or size if shown",
+  "sender": "Sender, shipper, factory, or manufacturer name/address",
+  "phone": "Any phone numbers visible",
+  "reference": "Any reference numbers, PO numbers, or codes not covered above",
+  "notes": "Special handling instructions, delivery notes, or remarks",
+  "additional_info": "Any other text or information visible on the sticker not covered by the fields above. Include EVERYTHING you can read."
+}
+
+IMPORTANT: Be extremely thorough. Read every single line of text on the label. This is for a damage claim report where complete and accurate information is critical for insurance and dispute resolution.`;
+
 function buildImageContent(imagePaths) {
   const content = [];
   for (const imgPath of imagePaths) {
@@ -50,9 +77,9 @@ function buildImageContent(imagePaths) {
 
 async function analyzePhotos(imagePaths, mode) {
   mode = mode || "sticker";
-  const isSticker = mode === "sticker";
-  const systemPrompt = isSticker ? STICKER_PROMPT : DAMAGE_PROMPT;
-  const userText = isSticker ? "Please analyze these delivery sticker photos and extract the requested information." : "Please analyze these damage photos in detail and provide a comprehensive damage assessment report.";
+  const isSticker = mode === "sticker" || mode === "sticker_full";
+  const systemPrompt = mode === "sticker_full" ? STICKER_FULL_PROMPT : (mode === "sticker" ? STICKER_PROMPT : DAMAGE_PROMPT);
+  const userText = mode === "sticker_full" ? "Please analyze these delivery sticker photos and extract ALL visible information. Be extremely thorough - read every piece of text on the label." : (isSticker ? "Please analyze these delivery sticker photos and extract the requested information." : "Please analyze these damage photos in detail and provide a comprehensive damage assessment report.");
   const content = [{ type: "text", text: userText }].concat(buildImageContent(imagePaths));
   const response = await openai.chat.completions.create({ model: "gpt-4o", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: content }], max_tokens: 3000, temperature: 0.1, response_format: { type: "json_object" } });
   const text = response.choices[0].message.content;

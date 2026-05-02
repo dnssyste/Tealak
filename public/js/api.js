@@ -34,6 +34,7 @@
   async function updateJob(id, data) { return request('PATCH', '/api/jobs/' + id, data); }
   async function updateJobStatus(id, status, report) { const body = { status }; if (report) body.damage_report = report; return request('PATCH', '/api/jobs/' + id + '/status', body); }
   async function analyzeJob(id) { return request('POST', '/api/jobs/' + id + '/analyze'); }
+  async function analyzeJobFull(id) { return request('POST', '/api/jobs/' + id + '/analyze?mode=full'); }
   async function analyzeDamage(id) { return request('POST', '/api/jobs/' + id + '/analyze-damage'); }
 
   async function uploadPhotos(jobId, files, type) { const formData = new FormData(); for (let i = 0; i < files.length; i++) formData.append('photos', files[i]); if (type) formData.append('type', type); return request('POST', '/api/photos/' + jobId, formData, true); }
@@ -44,5 +45,5 @@
 
   async function sendEmail(jobId, email) { return request('POST', '/api/jobs/' + jobId + '/email', email ? { email } : undefined); }
 
-  window.api = { login, getDrivers, logout, isLoggedIn, getDriverInfo, createJob, getJobs, getJob, updateJob, updateJobStatus, analyzeJob, analyzeDamage, uploadPhotos, getPhotos, deletePhoto, deleteJob, sendEmail, getSetting };
+  window.api = { login, getDrivers, logout, isLoggedIn, getDriverInfo, createJob, getJobs, getJob, updateJob, updateJobStatus, analyzeJob, analyzeJobFull, analyzeDamage, uploadPhotos, getPhotos, deletePhoto, deleteJob, sendEmail, getSetting };
 })();

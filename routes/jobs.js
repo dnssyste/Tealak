@@ -202,10 +202,14 @@ router.patch('/:id/status', async (req, res) => {
     }
 
     const job = result.rows[0];
-    // Fetch driver email for reply-to
+    // Fetch driver info for email
     try {
-      const driverEmailRes = await db.query('SELECT email FROM drivers WHERE id = $1', [job.driver_id]);
-      job.driver_email = driverEmailRes.rows[0]?.email || null;
+      const driverRes = await db.query('SELECT name, email, phone FROM drivers WHERE id = $1', [job.driver_id]);
+      if (driverRes.rows[0]) {
+        job.driver_name = driverRes.rows[0].name || null;
+        job.driver_email = driverRes.rows[0].email || null;
+        job.driver_phone = driverRes.rows[0].phone || null;
+      }
     } catch(e) { job.driver_email = null; }
 
     // Auto-send email if configured - use DB recipients
@@ -271,7 +275,8 @@ router.post('/:id/analyze', async (req, res) => {
     const imagePaths = photosResult.rows.map(p => `/data/photos/${p.filename}`);
 
     // Run AI analysis
-    const aiResult = await analyzePhotos(imagePaths);
+    const aiMode = req.query.mode === 'full' ? 'sticker_full' : 'sticker';
+    const aiResult = await analyzePhotos(imagePaths, aiMode);
 
     // Parse the result - handle both single object and array
     let parsed = aiResult;

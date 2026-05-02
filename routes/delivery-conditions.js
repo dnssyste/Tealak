@@ -1,4 +1,5 @@
 const express = require('express');
+const sharp = require('sharp');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
@@ -47,17 +48,28 @@ router.post('/', upload.array('photos', 30), async (req, res) => {
 
     const photoFilenames = [];
     for (const file of files) {
-      await db.query('INSERT INTO delivery_condition_photos (report_id, filename) VALUES ($1,$2)', [report.id, file.filename]);
-      photoFilenames.push(file.filename);
+      let savedFilename = file.filename;
+      try {
+        const rotatedName = 'rot_' + file.filename.replace(/\.[^.]+$/, '.jpg');
+        const rotatedPath = path.join('/data/photos', rotatedName);
+        await sharp(file.path).rotate().resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(rotatedPath);
+        fs.unlinkSync(file.path);
+        savedFilename = rotatedName;
+      } catch (sharpErr) {
+        console.error('Sharp rotation failed:', sharpErr.message);
+      }
+      await db.query('INSERT INTO delivery_condition_photos (report_id, filename) VALUES ($1,$2)', [report.id, savedFilename]);
+      photoFilenames.push(savedFilename);
     }
 
     // Send email to all active recipients
     try {
-      const recipientsRes = await db.query("SELECT email, reply_to FROM email_recipients WHERE active = TRUE");
+      const recipientsRes = await db.query("SELECT email, reply_to FROM email_recipients WHERE active = TRUE AND notify_dc = TRUE");
       if (recipientsRes.rows.length > 0) {
         const smtp = await getSmtpConfig(db);
         const transporter = nodemailer.createTransport({ host: smtp.host, port: smtp.port, secure: smtp.secure, auth: smtp.auth, tls: { rejectUnauthorized: false } });
         const baseUrl = process.env.BASE_URL || 'https://app.teslak.net';
+        const dcGalleryUrl = `${baseUrl}/dc-gallery/${report.id}`;
         const now = new Date(report.created_at);
         const dateStr = now.toLocaleString('da-DK', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Copenhagen' });
 
@@ -98,6 +110,9 @@ router.post('/', upload.array('photos', 30), async (req, res) => {
     </table>
   </div>
   ${photoFilenames.length > 0 ? `<div style="padding:0 32px 24px;"><h3 style="margin:0 0 12px;color:#374151;font-size:16px;">📷 Photos (${photoFilenames.length})</h3><div>${photoHtml}</div></div>` : ''}
+  <div style="padding:16px 32px;text-align:center;">
+      <a href="${dcGalleryUrl}" style="display:inline-block;background:#c0392b;color:#fff;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;letter-spacing:0.5px;">📸 View Photo Gallery & Download</a>
+    </div>
   <div style="background:#f9fafb;padding:16px 32px;text-align:center;border-top:1px solid #e5e7eb;">
     <p style="margin:0;color:#9ca3af;font-size:12px;">Teslak Delivery System &bull; ${new Date().toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen' })}</p>
   </div>

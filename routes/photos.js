@@ -65,6 +65,7 @@ router.post('/:jobId', upload.array('photos', 10), async (req, res) => {
         const optimizedName = `opt_${file.filename.replace(/\.[^.]+$/, '.jpg')}`;
         const optimizedPath = path.join(PHOTO_DIR, optimizedName);
         await sharp(file.path)
+          .rotate()
           .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 85 })
           .toFile(optimizedPath);

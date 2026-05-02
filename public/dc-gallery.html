@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teslak Delivery Conditions</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0f1a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; }
+    .header { background: #1a1a2e; padding: 20px; text-align: center; border-bottom: 2px solid #c0392b; }
+    .header h1 { color: #fff; font-size: 22px; letter-spacing: 1px; }
+    .header p { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+    .job-info { max-width: 800px; margin: 20px auto; padding: 0 16px; }
+    .info-card { background: #1a1a2e; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .info-card h2 { font-size: 18px; margin-bottom: 12px; color: #fff; }
+    .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2a2a3e; font-size: 14px; }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: #94a3b8; }
+    .info-value { color: #e2e8f0; font-weight: 500; text-align: right; max-width: 60%; }
+    .reason-badge { background: #c0392b; color: #fff; padding: 4px 12px; border-radius: 6px; font-weight: 600; }
+    .photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; max-width: 800px; margin: 0 auto 30px; padding: 0 16px; }
+    .photo-card { background: #1a1a2e; border-radius: 10px; overflow: hidden; }
+    .photo-card img { width: 100%; height: 220px; object-fit: cover; cursor: pointer; transition: opacity 0.2s; }
+    .photo-card img:hover { opacity: 0.85; }
+    .photo-actions { padding: 10px; display: flex; justify-content: flex-end; }
+    .download-btn { background: #c0392b; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; text-decoration: none; }
+    .download-btn:hover { background: #e74c3c; }
+    .download-all { text-align: center; margin: 20px auto 40px; }
+    .download-all a { background: #c0392b; color: #fff; padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; text-decoration: none; display: inline-block; }
+    .download-all a:hover { background: #e74c3c; }
+    .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 1000; justify-content: center; align-items: center; }
+    .lightbox.active { display: flex; }
+    .lightbox img { max-width: 95%; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+    .lightbox-close { position: fixed; top: 16px; right: 20px; color: #fff; font-size: 32px; cursor: pointer; z-index: 1001; background: rgba(0,0,0,0.5); width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; }
+    .loading { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 16px; }
+    .error { text-align: center; padding: 60px 20px; color: #ef4444; font-size: 16px; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 12px; border-top: 1px solid #1e293b; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📋 TESLAK TRANSPORT</h1>
+    <p>Delivery Conditions Report</p>
+  </div>
+  <div id="content">
+    <div class="loading" id="loading">Loading report details...</div>
+  </div>
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightbox-img" src="" alt="Full size" />
+  </div>
+  <script>
+    const reportId = window.location.pathname.split('/').pop();
+    const baseUrl = window.location.origin;
+    function openLightbox(src) {
+      document.getElementById('lightbox-img').src = src;
+      document.getElementById('lightbox').classList.add('active');
+    }
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+    async function loadGallery() {
+      try {
+        const res = await fetch(baseUrl + '/api/dc-reports/' + reportId + '/gallery');
+        if (!res.ok) throw new Error('Not found');
+        const data = await res.json();
+        const r = data.report;
+        const photos = data.photos;
+        const dateStr = new Date(r.created_at).toLocaleString('da-DK', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Copenhagen' });
+        let html = '<div class="job-info"><div class="info-card">';
+        html += '<h2>📋 Delivery Conditions Report</h2>';
+        html += '<div class="info-row"><span class="info-label">Truck</span><span class="info-value">' + (r.truck || 'N/A') + '</span></div>';
+        html += '<div class="info-row"><span class="info-label">Reason</span><span class="info-value"><span class="reason-badge">' + (r.reason || 'N/A') + '</span></span></div>';
+        html += '<div class="info-row"><span class="info-label">Comment</span><span class="info-value">' + (r.comment || '—') + '</span></div>';
+        html += '<div class="info-row"><span class="info-label">Date</span><span class="info-value">' + dateStr + '</span></div>';
+        html += '</div></div>';
+        html += '<div class="photos-grid">';
+        if (photos.length === 0) {
+          html += '<div class="loading">No photos available.</div>';
+        } else {
+          photos.forEach(function(p) {
+            var url = baseUrl + '/api/photos/file/' + p.filename;
+            html += '<div class="photo-card">';
+            html += '<img src="' + url + '" alt="Photo" onclick="openLightbox(\'' + url + '\')" />';
+            html += '<div class="photo-actions">';
+            html += '<a class="download-btn" href="' + url + '" download="' + p.filename + '">⬇ Download</a>';
+            html += '</div></div>';
+          });
+        }
+        html += '</div>';
+        if (photos.length > 1) {
+          html += '<div class="download-all"><a href="' + baseUrl + '/api/dc-reports/' + reportId + '/download-all">⬇ Download All Photos (ZIP)</a></div>';
+        }
+        html += '<div class="footer">Teslak Transport © ' + new Date().getFullYear() + ' — Photos auto-delete after 30 days</div>';
+        document.getElementById('content').innerHTML = html;
+      } catch (err) {
+        document.getElementById('content').innerHTML = '<div class="error">Could not load report. This link may have expired.</div>';
+      }
+    }
+    loadGallery();
+  </script>
+</body>
+</html>

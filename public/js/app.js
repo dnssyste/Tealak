@@ -544,8 +544,16 @@ function renderDashboard() {
         s.jobId = job.id;
       }
 
-      // Upload photos
-      const files = s.photos.map(function(p) { return p.file; });
+      // Upload photos (with rotation baked in)
+      const files = [];
+      for (let ri = 0; ri < s.photos.length; ri++) {
+        const ph = s.photos[ri];
+        if (ph.rotation) {
+          files.push(await _rotateFile(ph.file, ph.rotation));
+        } else {
+          files.push(ph.file);
+        }
+      }
       await api.uploadPhotos(s.jobId, files, 'sticker');
 
       // Analyze
@@ -755,23 +763,23 @@ function renderDashboard() {
       // Update job with data
       await api.updateJob(s.jobId, s.data);
 
-      // Upload additional photos
+      // Upload additional photos (with rotation baked in)
       if (s.additionalPhotos.length > 0) {
-        const files = s.additionalPhotos.map(function(p) { return p.file; });
+        const files = [];
+        for (let i = 0; i < s.additionalPhotos.length; i++) {
+          const p = s.additionalPhotos[i];
+          if (p.rotation) {
+            files.push(await _rotateFile(p.file, p.rotation));
+          } else {
+            files.push(p.file);
+          }
+        }
         await api.uploadPhotos(s.jobId, files, 'unload');
       }
 
       // Set status
       const report = (s.status === 'damaged' || s.status === 'missing') ? s.damageDesc : undefined;
       await api.updateJobStatus(s.jobId, s.status, report);
-
-      // Send email
-      try {
-        await api.sendEmail(s.jobId);
-        toast(t('new.emailSent'), 'success');
-      } catch (emailErr) {
-        // Email send is best-effort
-      }
 
       toast(t('new.success'), 'success');
 
@@ -783,6 +791,28 @@ function renderDashboard() {
       btn.disabled = false;
       btn.textContent = t('new.submit');
     }
+  }
+
+  // --- Helper: Rotate image file via Canvas ---
+  function _rotateFile(file, degrees) {
+    return new Promise(function(resolve) {
+      if (!degrees) { resolve(file); return; }
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var swap = (degrees === 90 || degrees === 270);
+        canvas.width = swap ? img.height : img.width;
+        canvas.height = swap ? img.width : img.height;
+        var ctx = canvas.getContext('2d');
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(degrees * Math.PI / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        canvas.toBlob(function(blob) {
+          resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.9);
+      };
+      img.src = URL.createObjectURL(file);
+    });
   }
 
   // ===== DELIVERIES VIEW =====
@@ -1099,19 +1129,17 @@ function renderDashboard() {
           '</div>' +
         '</div>' +
         '<label class="form-label">' + t('cont.itemTypeLabel') + '</label>' +
-        '<select class="form-input" id="cont-item-type" style="margin-bottom:12px;">' +
-        '<option value="">' + t('cont.itemTypePlaceholder') + '</option>' +
-        '<option value="' + t('cont.itemTypeHojskabe') + '">' + t('cont.itemTypeHojskabe') + '</option>' +
-        '<option value="' + t('cont.itemTypeVaegskabe') + '">' + t('cont.itemTypeVaegskabe') + '</option>' +
-        '<option value="' + t('cont.itemTypeUnderskabe') + '">' + t('cont.itemTypeUnderskabe') + '</option>' +
-        '<option value="' + t('cont.itemTypeHjorneskabe') + '">' + t('cont.itemTypeHjorneskabe') + '</option>' +
-        '<option value="' + t('cont.itemTypeLosdeleSokler') + '">' + t('cont.itemTypeLosdeleSokler') + '</option>' +
-        '<option value="' + t('cont.itemTypeSmapakker') + '">' + t('cont.itemTypeSmapakker') + '</option>' +
-        '<option value="' + t('cont.itemTypeKorteBordplader') + '">' + t('cont.itemTypeKorteBordplader') + '</option>' +
-        '<option value="' + t('cont.itemTypeLangeBordplader') + '">' + t('cont.itemTypeLangeBordplader') + '</option>' +
-        '<option value="' + t('cont.itemTypeHvidevarer') + '">' + t('cont.itemTypeHvidevarer') + '</option>' +
-        '<option value="' + t('cont.itemTypeBlandet') + '">' + t('cont.itemTypeBlandet') + '</option>' +
-        '</select>' +
+        (function() {
+          var _itOpts2 = (_dropdownCache.item_type && _dropdownCache.item_type.length) ? _dropdownCache.item_type : [{label_da:'Højskabe',label_en:'Tall cabinets'},{label_da:'Vægskabe',label_en:'Wall cabinets'},{label_da:'Underskabe',label_en:'Base cabinets'},{label_da:'Hjørneskabe',label_en:'Corner cabinets'},{label_da:'Løsdele & Sokler',label_en:'Loose parts & Plinths'},{label_da:'Småpakker',label_en:'Small packages'},{label_da:'Korte bordplader',label_en:'Short countertops'},{label_da:'Lange bordplader',label_en:'Long countertops'},{label_da:'Hvidevarer',label_en:'Appliances'},{label_da:'Blandet',label_en:'Mixed'}];
+          var _contLang2 = (window._lang || 'da');
+          var _itSel = Array.isArray(s._item_type) ? s._item_type : (s._item_type ? [s._item_type] : []);
+          return '<div id="cont-item-type-list" style="margin-bottom:12px;">' +
+            _itOpts2.map(function(o) {
+              var val = _contLang2 === 'en' ? o.label_en : o.label_da;
+              var chk = _itSel.indexOf(val) !== -1;
+              return '<label style="display:flex;align-items:center;padding:8px 12px;margin:2px 0;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:' + (chk ? '#e8f0fe' : 'var(--surface)') + '"><input type="checkbox" class="cont-item-cb" value="' + escHtml(val) + '"' + (chk ? ' checked' : '') + ' style="margin-right:10px;width:18px;height:18px;accent-color:var(--primary)"> <span>' + escHtml(val) + '</span></label>';
+            }).join('') + '</div>';
+        })() +
         '<label class="form-label">\ud83d\udcac ' + t('cont.comment') + '</label>' +
         '<textarea class="form-textarea" id="cont-comment" rows="3" placeholder="' + t('cont.commentPlaceholder') + '"></textarea>' +
       '</div>' +
@@ -1199,7 +1227,8 @@ function renderDashboard() {
           formData.append('comment', _contState._comment || '');
           formData.append('tur_nr', _contState._tur_nr || '');
           formData.append('container_nr', _contState._container_nr || '');
-          formData.append('item_type', _contState._item_type || '');
+          var itemTypeVal = Array.isArray(_contState._item_type) ? _contState._item_type.join(', ') : (_contState._item_type || '');
+          formData.append('item_type', itemTypeVal);
           formData.append('rating', _contState._rating || '');
           var bakedPhotos = await Promise.all(_contState.photos.map(function(p) {
             return new Promise(function(resolve) {
@@ -1242,8 +1271,8 @@ function renderDashboard() {
     var cm = document.getElementById('cont-comment');
     if (t1) _contState._tur_nr = t1.value;
     if (c1) _contState._container_nr = c1.value;
-    const it = document.getElementById('cont-item-type');
-    if (it) _contState._item_type = it.value;
+    var itCbs = document.querySelectorAll('.cont-item-cb:checked');
+    _contState._item_type = Array.from(itCbs).map(function(cb) { return cb.value; });
     if (cm) _contState._comment = cm.value;
   }
 
@@ -1253,179 +1282,320 @@ function renderDashboard() {
     var cm = document.getElementById('cont-comment');
     if (t1) t1.value = _contState._tur_nr || '';
     if (c1) c1.value = _contState._container_nr || '';
-    const itr = document.getElementById('cont-item-type');
-    if (itr) itr.value = _contState._item_type || '';
+    // Item type checkboxes rendered from state
     if (cm) cm.value = _contState._comment || '';
   }
 
 
 
     // ===== DAMAGE REPORT VIEW =====
-  let dmgState = { jobId: null, photos: [], description: '', severity: '' };
+  let dmgState = { step: 1, stickerPhotos: [], damagePhotos: [], jobId: null, stickerData: {}, description: '', severity: '', _analyzing: false };
 
   function renderDamageReport() {
-    dmgState = { jobId: null, photos: [], description: '', severity: '' };
+    dmgState = { step: 1, stickerPhotos: [], damagePhotos: [], jobId: null, stickerData: {}, description: '', severity: '', _analyzing: false };
+    _drawDmg();
+  }
 
-    let html = renderHeader(t('dmg.title'), true) +
-      '<div class="page-content">' +
-        '<div class="form-group">' +
-          '<label class="form-label">' + t('dmg.selectDelivery') + '</label>' +
-          '<select class="form-input" id="dmg-job-select"><option value="">' + (t('dmg.loadingJobs') || 'Loading...') + '</option></select>' +
-        '</div>' +
-        '<div class="section-title">' + t('dmg.evidence') + '</div>' +
-        '<div id="dmg-photos"></div>' +
-        '<div class="camera-zone" id="dmg-camera-trigger" style="padding:20px;">' +
-          '<div class="camera-icon" style="font-size:1.5rem;">📸</div>' +
-          '<div class="camera-text text-sm">' + t('dmg.takePhoto') + '</div>' +
-        '</div>' +
-        '<input type="file" accept="image/*" class="camera-input" id="dmg-camera-input" multiple>' +
-        '<div class="form-group mt-16">' +
-          '<label class="form-label">' + t('dmg.description') + '</label>' +
-          '<textarea class="form-textarea" id="dmg-desc" placeholder="' + t('dmg.descPlaceholder') + '"></textarea>' +
-        '</div>' +
-        '<div class="form-group">' +
-          '<label class="form-label">' + t('dmg.severity') + '</label>' +
-          '<div class="severity-options">' +
-            '<div class="severity-btn sev-low" data-sev="low">' + t('dmg.low') + '</div>' +
-            '<div class="severity-btn sev-medium" data-sev="medium">' + t('dmg.medium') + '</div>' +
-            '<div class="severity-btn sev-high" data-sev="high">' + t('dmg.high') + '</div>' +
-          '</div>' +
-        '</div>' +
-        '<button class="btn btn-danger mt-16" id="dmg-submit">' + t('dmg.submit') + '</button>' +
-      '</div>';
+  function _drawDmg() {
+    if (dmgState.step === 1) _drawDmgStep1();
+    else if (dmgState.step === 2) _drawDmgStep2();
+    else if (dmgState.step === 3) _drawDmgStep3();
+  }
 
-    render(html);
+  // --- STEP 1: Sticker Photos ---
+  function _drawDmgStep1() {
+    var s = dmgState;
+    var photosHtml = '';
+    if (s.stickerPhotos.length > 0) {
+      photosHtml = '<div class="photo-grid" style="margin-bottom:12px;">' +
+        s.stickerPhotos.map(function(p, i) {
+          return '<div class="photo-thumb"><img src="' + p.preview + '" alt="" style="transform:rotate(' + (p.rotation||0) + 'deg)"><button class="photo-rotate dmg-st-rot" data-idx="' + i + '">\u21BB</button><button class="photo-delete dmg-st-del" data-idx="' + i + '">\u2715</button></div>';
+        }).join('') +
+        '</div>';
+    }
 
-    // Load truck's jobs into dropdown
-    (async function() {
-      const sel = document.getElementById('dmg-job-select');
-      if (!sel) return;
-      try {
-        const driver = state.driver;
-        const data = await api.getJobs({ driver_id: driver ? driver.id : undefined });
-        const jobs = (data.jobs || data || []);
-        if (jobs.length === 0) {
-          sel.innerHTML = '<option value="">' + (t('dmg.noJobs') || 'No deliveries found') + '</option>';
-        } else {
-          sel.innerHTML = '<option value="">' + (t('dmg.selectDelivery') || 'Select delivery...') + '</option>' +
-            jobs.map(function(j) {
-              const label = [j.order_nr, j.customer, j.address].filter(Boolean).join(' — ');
-              return '<option value="' + j.id + '">' + escHtml(label || 'Job #' + j.id) + '</option>';
-            }).join('');
-        }
-      } catch (e) {
-        sel.innerHTML = '<option value="">' + (t('dmg.noJobs') || 'Could not load jobs') + '</option>';
-      }
-      sel.addEventListener('change', function() {
-        dmgState.jobId = this.value || null;
-      });
-    })();
+    var html = renderHeader(t('dmg.title'), true) +
+      '<div class="step-indicator"><span class="step-dot active"></span><span class="step-dot"></span><span class="step-dot"></span></div>' +
+      '<h2 class="text-center mb-16" style="font-size:1.1rem;">' + t('dmg.step1') + '</h2>' +
+      '<div class="card">' +
+        '<label class="form-label" style="margin-bottom:8px;">\uD83D\uDCCB ' + t('dmg.stickerPhotos') + ' (' + s.stickerPhotos.length + ')</label>' +
+        photosHtml +
+        '<div class="camera-zone" id="dmg-sticker-trigger" style="padding:20px;">' +
+          '<div class="camera-icon" style="font-size:1.5rem;">\uD83D\uDCF7</div>' +
+          '<div class="camera-text text-sm">' + t('dmg.takeStickerPhoto') + '</div>' +
+        '</div>' +
+        '<input type="file" accept="image/*" class="camera-input" id="dmg-sticker-input" multiple>' +
+      '</div>' +
+      '<button class="btn btn-primary mt-16" id="dmg-analyze-btn" style="width:100%;"' + (s.stickerPhotos.length === 0 ? ' disabled' : '') + '>' + t('dmg.analyzeSticker') + '</button>';
 
-    // Camera
-    document.getElementById('dmg-camera-trigger').addEventListener('click', function() {
-      haptic();
-      document.getElementById('dmg-camera-input').click();
+    document.getElementById('app').innerHTML = html;
+
+    document.getElementById('dmg-sticker-trigger').addEventListener('click', function() {
+      haptic(); document.getElementById('dmg-sticker-input').click();
     });
-    document.getElementById('dmg-camera-input').addEventListener('change', function(e) {
-      const files = e.target.files;
-      if (!files) return;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const reader = new FileReader();
+
+    document.getElementById('dmg-sticker-input').addEventListener('change', function(e) {
+      Array.from(e.target.files).forEach(function(file) {
+        var reader = new FileReader();
         reader.onload = function(ev) {
-          dmgState.photos.push({ file: file, preview: ev.target.result, rotation: 0 });
-          renderDmgPhotos();
+          s.stickerPhotos.push({ file: file, preview: ev.target.result, rotation: 0 });
+          _drawDmgStep1();
         };
         reader.readAsDataURL(file);
+      });
+      this.value = '';
+    });
+
+    document.querySelectorAll('.dmg-st-del').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); haptic(20);
+        s.stickerPhotos.splice(parseInt(this.getAttribute('data-idx')), 1);
+        _drawDmgStep1();
+      });
+    });
+    document.querySelectorAll('.dmg-st-rot').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); haptic();
+        var idx = parseInt(this.getAttribute('data-idx'));
+        s.stickerPhotos[idx].rotation = ((s.stickerPhotos[idx].rotation || 0) + 90) % 360;
+        _drawDmgStep1();
+      });
+    });
+
+    document.getElementById('dmg-analyze-btn').addEventListener('click', _doDmgAnalyze);
+  }
+
+  // --- Sticker AI Analysis ---
+  async function _doDmgAnalyze() {
+    var s = dmgState;
+    if (s._analyzing || s.stickerPhotos.length === 0) return;
+    s._analyzing = true;
+
+    document.getElementById('app').innerHTML = renderHeader(t('dmg.title'), true) +
+      '<div class="loading-overlay"><div class="spinner"></div><div class="loading-text">' +
+      t('dmg.analyzingSticker') + '</div><div class="text-sm text-muted">' +
+      (t('dmg.analyzingStickerDesc') || 'AI reading all information...') + '</div></div>';
+
+    try {
+      if (!s.jobId) {
+        var driver = state.driver;
+        var jobResult = await api.createJob(driver ? driver.id : undefined);
+        var job = jobResult.job || jobResult;
+        s.jobId = job.id;
       }
+
+      // Bake rotation into sticker photos before upload
+      var files = [];
+      for (var i = 0; i < s.stickerPhotos.length; i++) {
+        var p = s.stickerPhotos[i];
+        if (p.rotation) {
+          files.push(await _dmgRotateFile(p.file, p.rotation));
+        } else {
+          files.push(p.file);
+        }
+      }
+      await api.uploadPhotos(s.jobId, files, 'sticker');
+
+      // Analyze with FULL sticker mode (extracts ALL info)
+      var analysis = await api.analyzeJobFull(s.jobId);
+      var data = analysis.job || analysis.data || analysis;
+
+      s.stickerData = {
+        order_nr: data.order_nr || '',
+        tur_nr: data.tur_nr || data.tour_nr || '',
+        customer_name: data.customer_name || data.customer || '',
+        address: data.address || '',
+        delivery_date: data.delivery_date || new Date().toISOString().slice(0,10),
+        product: data.product || '',
+        antal: data.antal || '',
+        pos_nr: data.pos_nr || '',
+        production: data.production || '',
+        barcode: data.barcode || '',
+        weight: data.weight || '',
+        dimensions: data.dimensions || '',
+        sender: data.sender || '',
+        phone: data.phone || '',
+        reference: data.reference || '',
+        notes: data.notes || '',
+        additional_info: data.additional_info || ''
+      };
+
+      s._analyzing = false;
+      s.step = 2;
+      _drawDmg();
+    } catch (e) {
+      s._analyzing = false;
+      toast(e.message, 'error');
+      _drawDmgStep1();
+    }
+  }
+
+  // --- STEP 2: Review All Extracted Fields ---
+  function _drawDmgStep2() {
+    var s = dmgState;
+    var d = s.stickerData;
+
+    var mainFields = [
+      { key: 'order_nr', label: t('new.orderNr') },
+      { key: 'tur_nr', label: t('new.tourNr') },
+      { key: 'customer_name', label: t('new.customer') },
+      { key: 'address', label: t('new.address') },
+      { key: 'delivery_date', label: t('new.deliveryDate'), type: 'date' }
+    ];
+
+    var extraFields = [
+      { key: 'product', label: t('dmg.product') },
+      { key: 'antal', label: t('dmg.quantity') },
+      { key: 'pos_nr', label: t('dmg.posNr') },
+      { key: 'production', label: t('dmg.production') },
+      { key: 'barcode', label: t('dmg.barcode') },
+      { key: 'weight', label: t('dmg.weight') },
+      { key: 'dimensions', label: t('dmg.dimensions') },
+      { key: 'sender', label: t('dmg.sender') },
+      { key: 'phone', label: t('dmg.phone') },
+      { key: 'reference', label: t('dmg.reference') },
+      { key: 'notes', label: t('dmg.notes') },
+      { key: 'additional_info', label: t('dmg.additionalInfo') }
+    ];
+
+    function mkField(f) {
+      var val = d[f.key] || '';
+      if (f.key === 'additional_info' || f.key === 'notes') {
+        return '<div class="form-group"><label class="form-label">' + f.label + '</label>' +
+          '<textarea class="form-textarea dmg-field" data-field="' + f.key + '" rows="3">' + escHtml(val) + '</textarea></div>';
+      }
+      return '<div class="form-group"><label class="form-label">' + f.label + '</label>' +
+        '<input type="' + (f.type || 'text') + '" class="form-input dmg-field" data-field="' + f.key + '" value="' + escHtml(val) + '"></div>';
+    }
+
+    // Show extra fields that have values
+    var visibleExtra = extraFields.filter(function(f) { return d[f.key]; });
+
+    var html = renderHeader(t('dmg.title'), true) +
+      '<div class="step-indicator"><span class="step-dot done"></span><span class="step-dot active"></span><span class="step-dot"></span></div>' +
+      '<h2 class="text-center mb-16" style="font-size:1.1rem;">' + t('dmg.step2') + '</h2>' +
+      '<div class="card">' + mainFields.map(mkField).join('') + '</div>';
+
+    if (visibleExtra.length > 0) {
+      html += '<div class="card mt-16" style="background:var(--surface);">' +
+        '<div class="section-title" style="margin-bottom:8px;">\uD83D\uDCE6 ' + t('dmg.extraInfo') + '</div>' +
+        visibleExtra.map(mkField).join('') +
+        '</div>';
+    }
+
+    html += '<div class="flex-row mt-16" style="gap:10px;">' +
+      '<button class="btn btn-secondary" id="dmg-step2-back" style="flex:1;">' + t('dmg.back') + '</button>' +
+      '<button class="btn btn-primary" id="dmg-step2-next" style="flex:2;">' + t('dmg.next') + '</button>' +
+    '</div>';
+
+    document.getElementById('app').innerHTML = html;
+
+    document.querySelectorAll('.dmg-field').forEach(function(el) {
+      el.addEventListener('input', function() {
+        s.stickerData[this.getAttribute('data-field')] = this.value;
+      });
     });
 
-    // Description
-    document.getElementById('dmg-desc').addEventListener('input', function() {
-      dmgState.description = this.value;
+    document.getElementById('dmg-step2-back').addEventListener('click', function() { haptic(); s.step = 1; _drawDmg(); });
+    document.getElementById('dmg-step2-next').addEventListener('click', function() { haptic(); s.step = 3; _drawDmg(); });
+  }
+
+  // --- STEP 3: Damage Photos + Description + Severity ---
+  function _drawDmgStep3() {
+    var s = dmgState;
+    var photosHtml = '';
+    if (s.damagePhotos.length > 0) {
+      photosHtml = '<div class="photo-grid" style="margin-bottom:12px;">' +
+        s.damagePhotos.map(function(p, i) {
+          return '<div class="photo-thumb"><img src="' + p.preview + '" alt="" style="transform:rotate(' + (p.rotation||0) + 'deg)"><button class="photo-rotate dmg-dp-rot" data-idx="' + i + '">\u21BB</button><button class="photo-delete dmg-dp-del" data-idx="' + i + '">\u2715</button></div>';
+        }).join('') +
+        '</div>';
+    }
+
+    var sevBtns = ['low','medium','high'].map(function(sev) {
+      return '<div class="severity-btn sev-' + sev + (s.severity === sev ? ' selected' : '') + '" data-sev="' + sev + '">' + t('dmg.' + sev) + '</div>';
+    }).join('');
+
+    var html = renderHeader(t('dmg.title'), true) +
+      '<div class="step-indicator"><span class="step-dot done"></span><span class="step-dot done"></span><span class="step-dot active"></span></div>' +
+      '<h2 class="text-center mb-16" style="font-size:1.1rem;">' + t('dmg.step3') + '</h2>' +
+      '<div class="card">' +
+        '<label class="form-label" style="margin-bottom:8px;">\uD83D\uDCF7 ' + t('dmg.damagePhotos') + ' (' + s.damagePhotos.length + ')</label>' +
+        photosHtml +
+        '<div class="camera-zone" id="dmg-damage-trigger" style="padding:20px;">' +
+          '<div class="camera-icon" style="font-size:1.5rem;">\uD83D\uDCF7</div>' +
+          '<div class="camera-text text-sm">' + t('dmg.takeDamagePhoto') + '</div>' +
+        '</div>' +
+        '<input type="file" accept="image/*" class="camera-input" id="dmg-damage-input" multiple>' +
+      '</div>' +
+      '<div class="card mt-16">' +
+        '<label class="form-label">' + t('dmg.description') + '</label>' +
+        '<textarea class="form-textarea" id="dmg-desc" placeholder="' + t('dmg.descPlaceholder') + '">' + escHtml(s.description) + '</textarea>' +
+      '</div>' +
+      '<div class="card mt-16">' +
+        '<label class="form-label">' + t('dmg.severity') + '</label>' +
+        '<div class="severity-grid">' + sevBtns + '</div>' +
+      '</div>' +
+      '<div class="flex-row mt-16" style="gap:10px;">' +
+        '<button class="btn btn-secondary" id="dmg-step3-back" style="flex:1;">' + t('dmg.back') + '</button>' +
+        '<button class="btn btn-danger" id="dmg-submit" style="flex:2;">' + t('dmg.submit') + '</button>' +
+      '</div>';
+
+    document.getElementById('app').innerHTML = html;
+
+    document.getElementById('dmg-damage-trigger').addEventListener('click', function() {
+      haptic(); document.getElementById('dmg-damage-input').click();
+    });
+    document.getElementById('dmg-damage-input').addEventListener('change', function(e) {
+      Array.from(e.target.files).forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          s.damagePhotos.push({ file: file, preview: ev.target.result, rotation: 0 });
+          _drawDmgStep3();
+        };
+        reader.readAsDataURL(file);
+      });
+      this.value = '';
     });
 
-    // Severity
+    document.querySelectorAll('.dmg-dp-del').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); haptic(20);
+        s.damagePhotos.splice(parseInt(this.getAttribute('data-idx')), 1);
+        _drawDmgStep3();
+      });
+    });
+    document.querySelectorAll('.dmg-dp-rot').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation(); haptic();
+        var idx = parseInt(this.getAttribute('data-idx'));
+        s.damagePhotos[idx].rotation = ((s.damagePhotos[idx].rotation || 0) + 90) % 360;
+        _drawDmgStep3();
+      });
+    });
+
+    document.getElementById('dmg-desc').addEventListener('input', function() { s.description = this.value; });
+
     document.querySelectorAll('.severity-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         haptic();
-        dmgState.severity = this.getAttribute('data-sev');
-        document.querySelectorAll('.severity-btn').forEach(function(b) { b.classList.remove('selected'); });
-        this.classList.add('selected');
+        s.severity = this.getAttribute('data-sev');
+        _drawDmgStep3();
       });
     });
 
-    // Submit
-    document.getElementById('dmg-submit').addEventListener('click', submitDamageReport);
+    document.getElementById('dmg-step3-back').addEventListener('click', function() { haptic(); s.step = 2; _drawDmg(); });
+    document.getElementById('dmg-submit').addEventListener('click', _submitDmgReport);
   }
 
-  function renderDmgPhotos() {
-    const el = document.getElementById('dmg-photos');
-    if (!el) return;
-    if (dmgState.photos.length === 0) { el.innerHTML = ''; return; }
-    el.innerHTML = '<div class="photo-grid mb-12">' +
-      dmgState.photos.map(function(p, i) {
-        return '<div class="photo-thumb"><img src="' + p.preview + '" alt="" style="transform:rotate(' + (p.rotation||0) + 'deg)"><button class="photo-rotate dmg-photo-rot" data-idx="' + i + '">↻</button><button class="photo-delete dmg-photo-del" data-idx="' + i + '">✕</button></div>';
-      }).join('') +
-    '</div>';
-    document.querySelectorAll('.dmg-photo-del').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        haptic(20);
-        dmgState.photos.splice(parseInt(this.getAttribute('data-idx')), 1);
-        renderDmgPhotos();
-      });
-    });
-    document.querySelectorAll('.dmg-photo-rot').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation(); haptic();
-        const idx = parseInt(this.getAttribute('data-idx'));
-        dmgState.photos[idx].rotation = ((dmgState.photos[idx].rotation || 0) + 90) % 360;
-        renderDmgPhotos();
-      });
-    });
-  }
-
-  async function searchJobs(query) {
-    const el = document.getElementById('dmg-results');
-    if (!el || !query || query.length < 2) { if (el) el.innerHTML = ''; return; }
-
-    try {
-      const driver = state.driver;
-      const data = await api.getJobs({ driver_id: driver ? driver.id : undefined });
-      const jobs = (data.jobs || data || []).filter(function(j) {
-        const q = query.toLowerCase();
-        return (j.order_nr && j.order_nr.toLowerCase().includes(q)) ||
-               (j.customer && j.customer.toLowerCase().includes(q)) ||
-               (j.tour_nr && j.tour_nr.toLowerCase().includes(q));
-      }).slice(0, 5);
-
-      if (jobs.length === 0) { el.innerHTML = ''; return; }
-
-      el.innerHTML = jobs.map(function(j) {
-        return '<div class="job-card dmg-select-job" data-job-id="' + j.id + '" style="padding:12px;">' +
-          '<div class="flex-between"><span class="text-sm" style="font-weight:600;">' + escHtml(j.order_nr || '—') + '</span>' + statusBadge(j.status) + '</div>' +
-          '<div class="text-sm text-muted">' + escHtml(j.customer || '') + '</div>' +
-        '</div>';
-      }).join('');
-
-      document.querySelectorAll('.dmg-select-job').forEach(function(card) {
-        card.addEventListener('click', function() {
-          haptic();
-          dmgState.jobId = this.getAttribute('data-job-id');
-          document.querySelectorAll('.dmg-select-job').forEach(function(c) { c.style.borderLeft = ''; });
-          this.style.borderLeft = '3px solid #c62828';
-        });
-      });
-    } catch (e) { /* ignore search errors */ }
-  }
-
-  async function submitDamageReport() {
+  // --- Submit Damage Report ---
+  async function _submitDmgReport() {
+    var s = dmgState;
     haptic();
-    const btn = document.getElementById('dmg-submit');
+    var btn = document.getElementById('dmg-submit');
     if (!btn) return;
 
-    if (!dmgState.description) {
+    if (!s.description) {
       toast(t('common.error'), 'error');
       return;
     }
@@ -1434,38 +1604,46 @@ function renderDashboard() {
     btn.textContent = t('dmg.submitting');
 
     try {
-      let jobId = dmgState.jobId;
+      // Update job with all edited sticker fields
+      var d = s.stickerData;
+      await api.updateJob(s.jobId, {
+        tur_nr: d.tur_nr || null,
+        order_nr: d.order_nr || null,
+        customer_name: d.customer_name || null,
+        address: d.address || null,
+        delivery_date: d.delivery_date || null,
+        product: d.product || null,
+        antal: d.antal || null,
+        pos_nr: d.pos_nr || null,
+        production: d.production || null,
+        barcode: d.barcode || null
+      });
 
-      // If no existing job selected, create a new one
-      if (!jobId) {
-        const driver = state.driver;
-        const result = await api.createJob(driver ? driver.id : undefined);
-        const job = result.job || result;
-        jobId = job.id;
+      // Upload damage photos with rotation baked in
+      if (s.damagePhotos.length > 0) {
+        var files = [];
+        for (var i = 0; i < s.damagePhotos.length; i++) {
+          var p = s.damagePhotos[i];
+          if (p.rotation) {
+            files.push(await _dmgRotateFile(p.file, p.rotation));
+          } else {
+            files.push(p.file);
+          }
+        }
+        await api.uploadPhotos(s.jobId, files, 'damage');
       }
 
-      // Upload photos
-      if (dmgState.photos.length > 0) {
-        const files = dmgState.photos.map(function(p) { return p.file; });
-        await api.uploadPhotos(jobId, files, 'damage');
-      }
+      // Set status to damaged with driver description + severity
+      var report = s.description + (s.severity ? ' [' + s.severity.toUpperCase() + ']' : '');
+      await api.updateJobStatus(s.jobId, 'damaged', report);
 
-      // Update status with driver description first
-      const report = dmgState.description + (dmgState.severity ? ' [' + dmgState.severity.toUpperCase() + ']' : '');
-      await api.updateJobStatus(jobId, 'damaged', report);
-
-      // Run AI damage analysis on photos
-      if (dmgState.photos.length > 0) {
+      // Run AI damage analysis on the damage photos
+      if (s.damagePhotos.length > 0) {
         try {
           btn.textContent = t('dmg.analyzing') || 'Analyzing damage...';
-          await api.analyzeDamage(jobId);
+          await api.analyzeDamage(s.jobId);
         } catch (e) { console.error('AI damage analysis failed:', e); }
       }
-
-      // Send email
-      try {
-        await api.sendEmail(jobId);
-      } catch (e) { /* best effort */ }
 
       toast(t('dmg.success'), 'success');
       navigate('#/dashboard');
@@ -1474,6 +1652,28 @@ function renderDashboard() {
       btn.disabled = false;
       btn.textContent = t('dmg.submit');
     }
+  }
+
+  // --- Helper: Rotate image file via Canvas ---
+  function _dmgRotateFile(file, degrees) {
+    return new Promise(function(resolve) {
+      if (!degrees) { resolve(file); return; }
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var swap = (degrees === 90 || degrees === 270);
+        canvas.width = swap ? img.height : img.width;
+        canvas.height = swap ? img.width : img.height;
+        var ctx = canvas.getContext('2d');
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(degrees * Math.PI / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        canvas.toBlob(function(blob) {
+          resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.9);
+      };
+      img.src = URL.createObjectURL(file);
+    });
   }
 
   // ===== INIT =====
@@ -1500,11 +1700,12 @@ function renderDashboard() {
 
     var _dcOpts = (_dropdownCache.dc_reason && _dropdownCache.dc_reason.length) ? _dropdownCache.dc_reason : [{label_da:'Ikke hjemme',label_en:'Not home'},{label_da:'Adresse ikke fundet',label_en:'Address not found'},{label_da:'Kunde afviste leveringen',label_en:'Customer refused delivery'},{label_da:'Beskadiget vare - returneret',label_en:'Damaged goods - returned'},{label_da:'Forkert adresse',label_en:'Wrong address'},{label_da:'Adgangsproblemer',label_en:'Access problems'},{label_da:'Kræver underskrift - ingen hjemme',label_en:'Signature required - no one home'},{label_da:'Depot lukket / ikke tilgængeligt',label_en:'Depot closed / not accessible'},{label_da:'Andet',label_en:'Other'}];
     var _dcLang = (window._lang || 'da');
-    var reasonOptions = '<option value="">' + t('dc.reasonPlaceholder') + '</option>' +
-      _dcOpts.map(function(o) {
-        var val = _dcLang === 'en' ? o.label_en : o.label_da;
-        return '<option value="' + val + '"' + (s._reason === val ? ' selected' : '') + '>' + val + '</option>';
-      }).join('');
+    var _dcSelected = Array.isArray(s._reason) ? s._reason : (s._reason ? [s._reason] : []);
+    var reasonCheckboxes = _dcOpts.map(function(o) {
+      var val = _dcLang === 'en' ? o.label_en : o.label_da;
+      var chk = _dcSelected.indexOf(val) !== -1;
+      return '<label style="display:flex;align-items:center;padding:8px 12px;margin:2px 0;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:' + (chk ? '#e8f0fe' : 'var(--surface)') + '"><input type="checkbox" class="dc-reason-cb" value="' + escHtml(val) + '"' + (chk ? ' checked' : '') + ' style="margin-right:10px;width:18px;height:18px;accent-color:var(--primary)"> <span>' + escHtml(val) + '</span></label>';
+    }).join('');
 
     var html = renderHeader(t('dc.title'), true) +
       '<div class="card" style="margin-bottom:16px;">' +
@@ -1518,7 +1719,7 @@ function renderDashboard() {
       '</div>' +
       '<div class="card" style="margin-bottom:16px;">' +
         '<label class="form-label">' + t('dc.reasonLabel') + '</label>' +
-        '<select class="form-input" id="dc-reason" style="margin-bottom:12px;">' + reasonOptions + '</select>' +
+        '<div id="dc-reason-list" style="margin-bottom:12px;">' + reasonCheckboxes + '</div>' +
         '<label class="form-label">' + t('dc.comment') + '</label>' +
         '<textarea class="form-textarea" id="dc-comment" rows="3" placeholder="' + t('dc.commentPlaceholder') + '">' + escHtml(s._comment) + '</textarea>' +
       '</div>' +
@@ -1578,14 +1779,15 @@ function renderDashboard() {
     if (submitBtn && !s.submitting) {
       submitBtn.addEventListener('click', async function() {
         _saveDCFields();
-        if (!_dcState._reason) { alert(t('dc.noReason')); return; }
+        if (!_dcState._reason || (Array.isArray(_dcState._reason) && _dcState._reason.length === 0)) { alert(t('dc.noReason')); return; }
         _dcState.submitting = true;
         _drawDC();
         try {
           var formData = new FormData();
           var driverData = JSON.parse(localStorage.getItem('teslak_driver') || '{}');
           formData.append('driver_id', driverData.id || '');
-          formData.append('reason', _dcState._reason || '');
+          var reasonVal = Array.isArray(_dcState._reason) ? _dcState._reason.join(', ') : (_dcState._reason || '');
+          formData.append('reason', reasonVal);
           formData.append('comment', _dcState._comment || '');
           var bakedPhotos = await Promise.all(_dcState.photos.map(function(p) {
             return new Promise(function(resolve) {
@@ -1622,16 +1824,15 @@ function renderDashboard() {
   }
 
   function _saveDCFields() {
-    var r = document.getElementById('dc-reason');
+    var cbs = document.querySelectorAll('.dc-reason-cb:checked');
+    _dcState._reason = Array.from(cbs).map(function(cb) { return cb.value; });
     var c = document.getElementById('dc-comment');
-    if (r) _dcState._reason = r.value;
     if (c) _dcState._comment = c.value;
   }
 
   function _restoreDCFields() {
-    var r = document.getElementById('dc-reason');
+    // DC reason checkboxes rendered from state
     var c = document.getElementById('dc-comment');
-    if (r) r.value = _dcState._reason || '';
     if (c) c.value = _dcState._comment || '';
   }
 

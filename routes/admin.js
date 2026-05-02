@@ -53,12 +53,12 @@ router.get('/recipients', requireAdmin, async (req, res) => {
 
 router.post('/recipients', requireAdmin, async (req, res) => {
   try {
-    const { email, name, reply_to, notify_delivered, notify_damaged, notify_missing, notify_container } = req.body;
+    const { email, name, reply_to, notify_delivered, notify_damaged, notify_missing, notify_container, notify_dc } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
     const db = req.app.locals.db;
     const result = await db.query(
-      'INSERT INTO email_recipients (email, name, reply_to, notify_delivered, notify_damaged, notify_missing, notify_container) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [email, name || '', reply_to || null, notify_delivered !== false, notify_damaged !== false, notify_missing !== false, notify_container !== false]
+      'INSERT INTO email_recipients (email, name, reply_to, notify_delivered, notify_damaged, notify_missing, notify_container, notify_dc) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [email, name || '', reply_to || null, notify_delivered !== false, notify_damaged !== false, notify_missing !== false, notify_container !== false, notify_dc !== false]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -69,11 +69,11 @@ router.post('/recipients', requireAdmin, async (req, res) => {
 
 router.put('/recipients/:id', requireAdmin, async (req, res) => {
   try {
-    const { email, name, reply_to, notify_delivered, notify_damaged, notify_missing, notify_container, active } = req.body;
+    const { email, name, reply_to, notify_delivered, notify_damaged, notify_missing, notify_container, notify_dc, active } = req.body;
     const db = req.app.locals.db;
     const result = await db.query(
-      'UPDATE email_recipients SET email=$1, name=$2, reply_to=$3, notify_delivered=$4, notify_damaged=$5, notify_missing=$6, notify_container=$7, active=$8 WHERE id=$9 RETURNING *',
-      [email, name, reply_to || null, notify_delivered, notify_damaged, notify_missing, notify_container, active, req.params.id]
+      'UPDATE email_recipients SET email=$1, name=$2, reply_to=$3, notify_delivered=$4, notify_damaged=$5, notify_missing=$6, notify_container=$7, notify_dc=$8, active=$9 WHERE id=$10 RETURNING *',
+      [email, name, reply_to || null, notify_delivered, notify_damaged, notify_missing, notify_container, notify_dc, active, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(result.rows[0]);
@@ -519,6 +519,42 @@ router.delete('/dropdown-options/:id', async (req, res) => {
   try {
     const db = req.app.locals.db;
     await db.query('DELETE FROM dropdown_options WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+
+// GET /api/admin/dc-reports/library
+router.get('/dc-reports/library', requireAdmin, async (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    const result = await db.query(`
+      SELECT dc.*, d.name as driver_name,
+        COALESCE(json_agg(json_build_object('id', dcp.id, 'filename', dcp.filename)) FILTER (WHERE dcp.id IS NOT NULL), '[]') as photos
+      FROM delivery_conditions dc
+      LEFT JOIN drivers d ON d.id = dc.driver_id
+      LEFT JOIN delivery_condition_photos dcp ON dcp.report_id = dc.id
+      GROUP BY dc.id, d.name
+      ORDER BY dc.created_at DESC
+      LIMIT 200
+    `);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/admin/dc-reports/:id
+router.delete('/dc-reports/:id', requireAdmin, async (req, res) => {
+  const db = req.app.locals.db;
+  const { id } = req.params;
+  try {
+    const photos = await db.query('SELECT filename FROM delivery_condition_photos WHERE report_id = $1', [id]);
+    for (const p of photos.rows) {
+      const fp = require('path').join('/data/photos', p.filename);
+      if (require('fs').existsSync(fp)) require('fs').unlinkSync(fp);
+    }
+    await db.query('DELETE FROM delivery_condition_photos WHERE report_id = $1', [id]);
+    await db.query('DELETE FROM delivery_conditions WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
