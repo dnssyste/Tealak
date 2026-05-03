@@ -60,6 +60,15 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(sanitizeMiddleware);
 
 // Static files
+// Prevent caching of HTML pages so cache-busted JS references always load
+app.use((req, res, next) => {
+  if (req.path.endsWith(".html") || req.path === "/") {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Database pool

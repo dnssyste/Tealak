@@ -461,7 +461,7 @@ function renderDashboard() {
       '<div class="text-center mb-8"><div class="camera-icon">📸</div><div class="camera-text">' + t('new.takePhoto') + '</div><div class="text-sm text-muted mt-8">' + t('new.takePhotoDesc') + '</div></div>' +
       '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
         '<button type="button" class="btn btn-primary" id="camera-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
-        '<button type="button" class="btn btn-secondary" id="camera-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+        '<label for="camera-input-files" class="btn btn-secondary" id="camera-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;cursor:pointer;">📁 ' + t('new.files') + '</label>' +
       '</div>' +
       '<input type="file" accept="image/*" capture="environment" class="camera-input" id="camera-input">' +
       '<input type="file" accept="image/*" multiple class="camera-input" id="camera-input-files">' +
@@ -476,10 +476,7 @@ function renderDashboard() {
       haptic();
       document.getElementById('camera-input').click();
     });
-    document.getElementById('camera-input-file-btn').addEventListener('click', function() {
-      haptic();
-      document.getElementById('camera-input-files').click();
-    });
+    // label for=camera-input-files handles click natively
     document.getElementById('camera-input-files').addEventListener('change', handlePhotoCapture);
 
     document.getElementById('camera-input').addEventListener('change', handlePhotoCapture);
@@ -518,8 +515,9 @@ function renderDashboard() {
   }
 
   function handlePhotoCapture(e) {
-    const files = e.target.files;
+    const inp = e.target; const files = Array.from(inp.files);
     if (!files || files.length === 0) return;
+    inp.value = "";
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const reader = new FileReader();
@@ -624,7 +622,7 @@ function renderDashboard() {
       '<div class="text-center" style="padding:8px 0;"><div class="camera-icon" style="font-size:1.5rem;">📷</div><div class="camera-text text-sm">' + t('new.addUnloadPhoto') + '</div></div>' +
       '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
         '<button type="button" class="btn btn-primary" id="add-photo-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
-        '<button type="button" class="btn btn-secondary" id="add-photo-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+        '<label for="add-photo-input-files" class="btn btn-secondary" id="add-photo-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;cursor:pointer;">📁 ' + t('new.files') + '</label>' +
       '</div>' +
       '<input type="file" accept="image/*" capture="environment" class="camera-input" id="add-photo-input">' +
       '<input type="file" accept="image/*" multiple class="camera-input" id="add-photo-input-files">' +
@@ -648,10 +646,7 @@ function renderDashboard() {
       haptic();
       document.getElementById('add-photo-input').click();
     });
-    document.getElementById('add-photo-input-file-btn').addEventListener('click', function() {
-      haptic();
-      document.getElementById('add-photo-input-files').click();
-    });
+    // label for=add-photo-input-files handles click natively
     document.getElementById('add-photo-input-files').addEventListener('change', function(e) {
       var files = Array.from(e.target.files);
       files.forEach(function(file) {
@@ -665,7 +660,7 @@ function renderDashboard() {
       e.target.value = '';
     });
     document.getElementById('add-photo-input').addEventListener('change', function(e) {
-      const files = e.target.files;
+      const inp = e.target; const files = Array.from(inp.files);
       if (!files) return;
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -1137,7 +1132,7 @@ function renderDashboard() {
         '<div class="text-center" style="padding:8px 0;"><div class="camera-icon">\ud83d\udcf7</div><div class="camera-text">' + t('cont.addPhoto') + '</div></div>' +
         '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
         '<button type="button" class="btn btn-primary" id="cont-photo-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
-        '<button type="button" class="btn btn-secondary" id="cont-photo-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+        '<label for="cont-photo-input-files" class="btn btn-secondary" id="cont-photo-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;cursor:pointer;">📁 ' + t('new.files') + '</label>' +
       '</div>' +
       '<input type="file" accept="image/*" capture="environment" class="camera-input" id="cont-photo-input">' +
       '<input type="file" accept="image/*" multiple class="camera-input" id="cont-photo-input-files">' +
@@ -1184,10 +1179,7 @@ function renderDashboard() {
       haptic();
       document.getElementById('cont-photo-input').click();
     });
-    document.getElementById('cont-photo-input-file-btn').addEventListener('click', function() {
-      haptic();
-      document.getElementById('cont-photo-input-files').click();
-    });
+    // label for=cont-photo-input-files handles click natively
     document.getElementById('cont-photo-input-files').addEventListener('change', function(e) {
       var files = Array.from(e.target.files);
       files.forEach(function(file) {
@@ -1366,7 +1358,7 @@ function renderDashboard() {
         '<div class="text-center" style="padding:8px 0;"><div class="camera-icon" style="font-size:1.5rem;">\uD83D\uDCF7</div><div class="camera-text text-sm">' + t('dmg.takeStickerPhoto') + '</div></div>' +
         '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
         '<button type="button" class="btn btn-primary" id="dmg-sticker-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
-        '<button type="button" class="btn btn-secondary" id="dmg-sticker-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+        '<label for="dmg-sticker-input-files" class="btn btn-secondary" id="dmg-sticker-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;cursor:pointer;">📁 ' + t('new.files') + '</label>' +
       '</div>' +
       '<input type="file" accept="image/*" capture="environment" class="camera-input" id="dmg-sticker-input">' +
       '<input type="file" accept="image/*" multiple class="camera-input" id="dmg-sticker-input-files">' +
@@ -1379,10 +1371,7 @@ function renderDashboard() {
       haptic();
       document.getElementById('dmg-sticker-input').click();
     });
-    document.getElementById('dmg-sticker-input-file-btn').addEventListener('click', function() {
-      haptic();
-      document.getElementById('dmg-sticker-input-files').click();
-    });
+    // label for=dmg-sticker-input-files handles click natively
     document.getElementById('dmg-sticker-input-files').addEventListener('change', function(e) {
       var files = Array.from(e.target.files);
       files.forEach(function(file) {
@@ -1587,7 +1576,7 @@ function renderDashboard() {
         '<div class="text-center" style="padding:8px 0;"><div class="camera-icon" style="font-size:1.5rem;">\uD83D\uDCF7</div><div class="camera-text text-sm">' + t('dmg.takeDamagePhoto') + '</div></div>' +
         '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
         '<button type="button" class="btn btn-primary" id="dmg-damage-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
-        '<button type="button" class="btn btn-secondary" id="dmg-damage-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+        '<label for="dmg-damage-input-files" class="btn btn-secondary" id="dmg-damage-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;cursor:pointer;">📁 ' + t('new.files') + '</label>' +
       '</div>' +
       '<input type="file" accept="image/*" capture="environment" class="camera-input" id="dmg-damage-input">' +
       '<input type="file" accept="image/*" multiple class="camera-input" id="dmg-damage-input-files">' +
@@ -1611,10 +1600,7 @@ function renderDashboard() {
       haptic();
       document.getElementById('dmg-damage-input').click();
     });
-    document.getElementById('dmg-damage-input-file-btn').addEventListener('click', function() {
-      haptic();
-      document.getElementById('dmg-damage-input-files').click();
-    });
+    // label for=dmg-damage-input-files handles click natively
     document.getElementById('dmg-damage-input-files').addEventListener('change', function(e) {
       var files = Array.from(e.target.files);
       files.forEach(function(file) {
@@ -1794,7 +1780,7 @@ function renderDashboard() {
         '<div class="text-center" style="padding:8px 0;"><div class="camera-icon">📷</div><div class="camera-text">' + t('dc.addPhoto') + '</div></div>' +
         '<div style="display:flex;gap:12px;justify-content:center;margin:12px 0;">' +
         '<button type="button" class="btn btn-primary" id="dc-photo-input-cam-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📷 ' + t('new.camera') + '</button>' +
-        '<button type="button" class="btn btn-secondary" id="dc-photo-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;">📁 ' + t('new.files') + '</button>' +
+        '<label for="dc-photo-input-files" class="btn btn-secondary" id="dc-photo-input-file-btn" style="flex:1;max-width:180px;padding:14px 8px;font-size:1rem;cursor:pointer;">📁 ' + t('new.files') + '</label>' +
       '</div>' +
       '<input type="file" accept="image/*" capture="environment" class="camera-input" id="dc-photo-input">' +
       '<input type="file" accept="image/*" multiple class="camera-input" id="dc-photo-input-files">' +
@@ -1817,10 +1803,7 @@ function renderDashboard() {
       haptic();
       document.getElementById('dc-photo-input').click();
     });
-    document.getElementById('dc-photo-input-file-btn').addEventListener('click', function() {
-      haptic();
-      document.getElementById('dc-photo-input-files').click();
-    });
+    // label for=dc-photo-input-files handles click natively
     document.getElementById('dc-photo-input-files').addEventListener('change', function(e) {
       var files = Array.from(e.target.files);
       files.forEach(function(file) {

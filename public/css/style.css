@@ -256,7 +256,7 @@ img { max-width: 100%; display: block; }
 .camera-zone:active { border-color: #c62828; }
 .camera-zone .camera-icon { font-size: 3rem; margin-bottom: 12px; }
 .camera-zone .camera-text { font-size: 0.9rem; color: #b0b0b0; }
-.camera-input { display: none; }
+.camera-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); opacity: 0; }
 
 .photo-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
